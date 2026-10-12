@@ -12,12 +12,22 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     OnPullRequestBranches = new[] { "main" },
     InvokedTargets = new[] { nameof(Test) },
     EnableGitHubToken = true)]
+[GitHubActions(
+    "publish",
+    GitHubActionsImage.WindowsLatest,
+    OnPushTags = new[] { "v*.*.*" },
+    InvokedTargets = new[] { nameof(Publish) },
+    ImportSecrets = new[] { nameof(NuGetApiKey) },
+    EnableGitHubToken = true)]
 class Build : NukeBuild
 {
     public static int Main() => Execute<Build>(x => x.Test);
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
+
+    [Parameter("NuGet API key")]
+    readonly string NuGetApiKey = null!;
 
     AbsolutePath SolutionFile => RootDirectory / "FastReflection.slnx";
     AbsolutePath LibraryProject => RootDirectory / "src" / "FastReflection" / "FastReflection.csproj";
@@ -66,5 +76,18 @@ class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .SetOutputDirectory(ArtifactsDirectory)
                 .EnableNoBuild());
+        });
+
+    Target Publish => _ => _
+        .DependsOn(Pack)
+        .Requires(() => NuGetApiKey)
+        .Executes(() =>
+        {
+            DotNetNuGetPush(s => s
+                .SetSource("https://api.nuget.org/v3/index.json")
+                .SetApiKey(NuGetApiKey)
+                .EnableSkipDuplicate()
+                .CombineWith(ArtifactsDirectory.GlobFiles("*.nupkg"), (settings, path) => settings
+                    .SetTargetPath(path)));
         });
 }

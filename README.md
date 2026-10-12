@@ -87,3 +87,15 @@ dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj -f net8.0  # 
 dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -f net8.0 -- --job short
 dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -f net472 -- --job short
 ```
+
+## Releasing
+
+CI is driven by [Nuke](https://nuke.build) (`build.cmd <Target>`: `Clean`/`Restore`/`Compile`/`Test`/`Pack`/`Publish`).
+
+- `ci.yml` runs `Test` on every push/PR to `main` (all three test legs).
+- `publish.yml` runs `Publish` on tags matching `v*.*.*` and pushes `Skymly.FastReflection` to nuget.org. Requires a repo secret named `NUGET_API_KEY`; the package version comes from `<Version>` in `src/FastReflection/FastReflection.csproj` — bump it before tagging.
+
+```bash
+git tag v0.1.0 && git push --tags   # triggers nuget.org publish
+```
+```

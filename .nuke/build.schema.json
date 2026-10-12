@@ -27,6 +27,7 @@
         "Clean",
         "Compile",
         "Pack",
+        "Publish",
         "Restore",
         "Test"
       ]
@@ -109,6 +110,10 @@
             "Debug",
             "Release"
           ]
+        },
+        "NuGetApiKey": {
+          "type": "string",
+          "description": "NuGet API key"
         }
       }
     },

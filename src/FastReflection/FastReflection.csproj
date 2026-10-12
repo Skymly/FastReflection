@@ -9,10 +9,23 @@
     <Authors>Skymly</Authors>
     <Description>Fast reflection member access via compiled delegates (DynamicMethod) with graceful fallback. Supports .NET Framework 4.6.2+, .NET Core and .NET 8+.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>reflection;emit;il;delegate;performance</PackageTags>
+    <RepositoryUrl>https://github.com/Skymly/FastReflection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />
+  </ItemGroup>
 
   <!-- DynamicMethod/ILGenerator are in-box on net462 and net8.0; netstandard2.0 needs the packages -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
