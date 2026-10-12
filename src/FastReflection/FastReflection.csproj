@@ -20,6 +20,11 @@
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
   </ItemGroup>
 
+  <!-- Build-time only: lets net462 compile on machines without the .NET Framework targeting pack (CI) -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="FastReflection.Tests" />
   </ItemGroup>
