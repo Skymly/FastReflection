@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net472 test leg consumes the library's net462 build -->
-    <TargetFrameworks>net472;net8.0</TargetFrameworks>
+    <!-- net472 test leg consumes the library's net462 build, net6.0 consumes netstandard2.0 -->
+    <TargetFrameworks>net472;net6.0;net8.0</TargetFrameworks>
+    <!-- Test hosts roll forward to a newer runtime when the exact one is not installed -->
+    <RollForward>LatestMajor</RollForward>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

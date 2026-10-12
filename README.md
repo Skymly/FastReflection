@@ -51,27 +51,30 @@ wrapped["Value"] = 42;
 - NRT/XML-docs semantic enrichment — use [Namotion.Reflection](https://github.com/RicoSuter/Namotion.Reflection)
 - `IDynamicMetaObjectProvider`/`dynamic` dispatch — that's [dynamitey](https://github.com/ekonbenefits/dynamitey) territory
 
-## Benchmarks (net8.0, BenchmarkDotNet ShortRun)
+## Benchmarks (BenchmarkDotNet ShortRun, local machine)
 
-| Method | Mean | Allocated |
+The payoff is largest on .NET Framework, where `MethodInfo.Invoke` has not yet
+received the runtime-level speedups added in .NET 7+:
+
+| Method | .NET Framework 4.8.1 | net8.0 |
 |---|---:|---:|
-| DirectCall | ~0 ns | – |
-| PropertyInfo.GetValue | 9.54 ns | 24 B |
-| **FastReflection getter** | **5.37 ns** | 24 B |
-| TypeAccessor[name] | 13.56 ns | 24 B |
-| TypeAccessor[ordinal] | 6.03 ns | 24 B |
-| MethodInfo.Invoke | 18.58 ns | 24 B |
-| BCL MethodInvoker | 11.36 ns | 24 B |
-| **FastReflection invoker** | **5.59 ns** | 24 B |
+| DirectCall | ~0.6 ns | ~0 ns |
+| PropertyInfo.GetValue | 109.84 ns | 9.54 ns |
+| **FastReflection getter** | **8.19 ns (13× faster)** | **5.37 ns** |
+| TypeAccessor[name] | 35.95 ns | 13.56 ns |
+| TypeAccessor[ordinal] | 7.01 ns | 6.03 ns |
+| MethodInfo.Invoke | 216.34 ns | 18.58 ns |
+| BCL MethodInvoker | n/a | 11.36 ns |
+| **FastReflection invoker** | **6.39 ns (34× faster)** | **5.59 ns** |
 
-(24 B = the boxed `int` return value, common to all paths.)
+(24 B allocated per reflection call = the boxed `int` return value, common to all paths.)
 
 ## Layout
 
 ```
 src/FastReflection/             library (net462;netstandard2.0;net8.0)
-tests/FastReflection.Tests/     xunit (net472 → exercises net462 build; net8.0)
-benchmarks/                     BenchmarkDotNet (net8.0)
+tests/FastReflection.Tests/     xunit (net472 → net462 build; net6.0 → netstandard2.0; net8.0)
+benchmarks/                     BenchmarkDotNet (net472;net8.0)
 docs/research/                  design research notes
 ```
 
@@ -81,5 +84,6 @@ docs/research/                  design research notes
 dotnet build FastReflection.slnx
 dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj            # all legs
 dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj -f net8.0  # one leg
-dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -- --job short
+dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -f net8.0 -- --job short
+dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -f net472 -- --job short
 ```

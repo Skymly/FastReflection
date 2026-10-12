@@ -50,11 +50,9 @@ class Build : NukeBuild
         .DependsOn(Compile)
         .Executes(() =>
         {
-            // net8.0 test leg may roll forward onto a newer installed runtime on CI
             DotNetTest(s => s
                 .SetProjectFile(TestProject)
                 .SetConfiguration(Configuration)
-                .AddProcessEnvironmentVariable("DOTNET_ROLL_FORWARD", "LatestMajor")
                 .EnableNoBuild());
         });
 

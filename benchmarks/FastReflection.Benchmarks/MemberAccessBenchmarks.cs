@@ -1,7 +1,9 @@
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
 using FastReflection;
+#if NET8_0_OR_GREATER
 using BclMethodInvoker = System.Reflection.MethodInvoker;
+#endif
 
 [MemoryDiagnoser]
 public class MemberAccessBenchmarks
@@ -19,7 +21,9 @@ public class MemberAccessBenchmarks
     private TypeAccessor _accessor = null!;
     private int _ordinal;
     private FastInvoker _invoker = null!;
+#if NET8_0_OR_GREATER
     private BclMethodInvoker _bclInvoker = null!;
+#endif
     private object[] _args = { 2, 3 };
 
     [GlobalSetup]
@@ -31,7 +35,9 @@ public class MemberAccessBenchmarks
         _accessor = TypeAccessor.Create(typeof(Target));
         _accessor.TryGetOrdinal(nameof(Target.Value), out _ordinal);
         _invoker = _method.CreateInvoker();
+#if NET8_0_OR_GREATER
         _bclInvoker = BclMethodInvoker.Create(_method);
+#endif
     }
 
     [Benchmark(Baseline = true)]
@@ -52,8 +58,10 @@ public class MemberAccessBenchmarks
     [Benchmark]
     public object MethodInfo_Invoke() => _method.Invoke(_target, _args)!;
 
+#if NET8_0_OR_GREATER
     [Benchmark]
     public object BclMethodInvoker_Invoke() => _bclInvoker.Invoke(_target, _args.AsSpan())!;
+#endif
 
     [Benchmark]
     public object FastReflection_Invoker() => _invoker(_target, _args)!;
