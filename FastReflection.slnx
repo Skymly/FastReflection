@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/FastReflection.Benchmarks/FastReflection.Benchmarks.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FastReflection/FastReflection.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FastReflection.Tests/FastReflection.Tests.csproj" />
+  </Folder>
+</Solution>

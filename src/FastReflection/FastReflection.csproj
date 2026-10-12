@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net462;netstandard2.0;net8.0</TargetFrameworks>
+    <AssemblyName>FastReflection</AssemblyName>
+    <RootNamespace>FastReflection</RootNamespace>
+    <PackageId>Skymly.FastReflection</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Skymly</Authors>
+    <Description>Fast reflection member access via compiled delegates (DynamicMethod) with graceful fallback. Supports .NET Framework 4.6.2+, .NET Core and .NET 8+.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>reflection;emit;il;delegate;performance</PackageTags>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- DynamicMethod/ILGenerator are in-box on net462 and net8.0; netstandard2.0 needs the packages -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.7.0" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FastReflection.Tests" />
+  </ItemGroup>
+
+</Project>
