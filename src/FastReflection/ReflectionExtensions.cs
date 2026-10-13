@@ -8,8 +8,10 @@ namespace FastReflection
     /// <see cref="ConstructorInfo"/> into compiled delegates. Delegates are created once and
     /// called like normal code — no reflection cost on the hot path.
     /// <para>
-    /// When runtime code generation is unavailable (AOT/trimmed interpreters), all factories
-    /// transparently fall back to ordinary reflection.
+    /// When runtime code generation is unavailable (AOT/trimmed interpreters), factories fall back
+    /// to ordinary reflection. <see cref="CreateInvoker{TDelegate}(MethodInfo)"/> still binds a public
+    /// exact signature with <c>CreateDelegate</c>; <see cref="Ref{T}"/> adaptation and non-public methods
+    /// that <c>CreateDelegate</c> cannot bind throw <see cref="NotSupportedException"/> instead.
     /// </para>
     /// </summary>
     public static class ReflectionExtensions
@@ -43,7 +45,7 @@ namespace FastReflection
             var get = property.GetGetMethod(true)
                 ?? throw new ArgumentException("Property has no get accessor.", nameof(property));
             try { return (Func<TDeclaring, TValue>)get.CreateDelegate(typeof(Func<TDeclaring, TValue>)); }
-            catch (Exception e) when (IsDelegateBindFailure(e)) { }
+            catch (Exception e) when (EmitHelper.IsDelegateBindFailure(e)) { }
             var open = property.CreateGetter();
             return target => (TValue)open(target)!;
         }
@@ -55,7 +57,7 @@ namespace FastReflection
             var set = property.GetSetMethod(true)
                 ?? throw new ArgumentException("Property has no set accessor.", nameof(property));
             try { return (Action<TDeclaring, TValue>)set.CreateDelegate(typeof(Action<TDeclaring, TValue>)); }
-            catch (Exception e) when (IsDelegateBindFailure(e)) { }
+            catch (Exception e) when (EmitHelper.IsDelegateBindFailure(e)) { }
             var open = property.CreateSetter();
             return (target, value) => open(target, value);
         }
@@ -91,9 +93,25 @@ namespace FastReflection
         /// <summary>
         /// Compiles <c>(target, args) => result</c> for any method — instance, static, non-public.
         /// <see langword="ref"/>/<see langword="out"/> arguments are written back into the args array.
+        /// A <see langword="ref"/> return is dereferenced and boxed as its element value.
         /// </summary>
         public static FastInvoker CreateInvoker(this MethodInfo method)
             => AccessorEmitter.CreateInvoker(method);
+
+        /// <summary>
+        /// Creates a strongly typed invoker.
+        /// A public exact signature is bound with <c>CreateDelegate</c> and does not need dynamic code.
+        /// Non-public exact signatures that <c>CreateDelegate</c> cannot bind, including
+        /// <see langword="ref"/> / <see langword="out"/> / <see langword="in"/> parameters, are compiled
+        /// with <c>DynamicMethod</c>. Those parameters may instead be declared as <c>ref</c> / <c>out</c> /
+        /// <c>in</c> <see cref="Ref{T}"/>; that shape is also compiled, and the method writes
+        /// <see cref="Ref{T}.Value"/> in place, without boxing.
+        /// A <see langword="ref"/> or <see langword="in"/> class target is dereferenced before the call.
+        /// </summary>
+        /// <exception cref="ArgumentException">The delegate does not match, or <see cref="Ref{T}"/> is passed by value.</exception>
+        /// <exception cref="NotSupportedException">Binding needs dynamic code and it is unavailable.</exception>
+        public static TDelegate CreateInvoker<TDelegate>(this MethodInfo method) where TDelegate : Delegate
+            => AccessorEmitter.CreateTypedInvoker<TDelegate>(method);
 
         /// <summary>Compiles <c>args => instance</c> for any constructor, including non-public ones.</summary>
         public static FastConstructorInvoker CreateInvoker(this ConstructorInfo ctor)
@@ -111,24 +129,22 @@ namespace FastReflection
             => AccessorEmitter.CreateFactory(type, nonPublic);
 
 #if NET8_0_OR_GREATER
-        /// <summary>Span-based invoker backed by <see cref="System.Reflection.MethodInvoker"/> (allocation-free, Span overloads).</summary>
+        /// <summary>
+        /// Span-based invoker compiled with <c>DynamicMethod</c>.
+        /// The caller owns the <see cref="Span{T}"/> buffer (<c>Span&lt;object?&gt;</c> cannot be <c>stackalloc</c>'d).
+        /// Value-type arguments and the return value are still boxed.
+        /// A <see langword="ref"/> return is dereferenced, then boxed.
+        /// Falls back to <see cref="System.Reflection.MethodInvoker"/> when dynamic code is unavailable.
+        /// </summary>
         public static FastSpanInvoker CreateSpanInvoker(this MethodInfo method)
-        {
-            if (method == null) throw new ArgumentNullException(nameof(method));
-            var invoker = System.Reflection.MethodInvoker.Create(method);
-            return invoker.Invoke;
-        }
+            => AccessorEmitter.CreateSpanInvoker(method);
 
-        /// <summary>Span-based constructor invoker backed by <see cref="System.Reflection.ConstructorInvoker"/>.</summary>
+        /// <summary>
+        /// Span-based constructor invoker compiled with <c>DynamicMethod</c>.
+        /// Falls back to <see cref="System.Reflection.ConstructorInvoker"/> when dynamic code is unavailable.
+        /// </summary>
         public static FastSpanConstructorInvoker CreateSpanInvoker(this ConstructorInfo ctor)
-        {
-            if (ctor == null) throw new ArgumentNullException(nameof(ctor));
-            var invoker = System.Reflection.ConstructorInvoker.Create(ctor);
-            return invoker.Invoke;
-        }
+            => AccessorEmitter.CreateSpanInvoker(ctor);
 #endif
-
-        private static bool IsDelegateBindFailure(Exception e)
-            => e is ArgumentException or MethodAccessException or MemberAccessException or MissingMethodException or InvalidOperationException;
     }
 }

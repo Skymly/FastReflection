@@ -1,6 +1,6 @@
 # FastReflection
 
-Fast .NET reflection member access via compiled delegates (`DynamicMethod`) — with transparent fallback to plain reflection when dynamic code is unavailable (AOT/trimmed environments).
+Fast .NET reflection member access via compiled delegates (`DynamicMethod`) — with transparent fallback to plain reflection when dynamic code is unavailable (AOT/trimmed environments). `CreateInvoker<TDelegate>()` still binds a public exact signature without dynamic code; `Ref<T>` adaptation and non-public methods that `CreateDelegate` cannot bind throw instead of falling back.
 
 **Target frameworks**: `net462`, `netstandard2.0`, `net8.0`
 
@@ -24,6 +24,11 @@ set(target, 42);
 var typed = add.Unreflect<Func<Foo, int, int, int>>();
 int sum = typed(foo, 2, 3);
 
+// ref/out without boxing. object[] and Span<object?> still box value-type arguments.
+delegate bool Parse(Foo target, string text, out Ref<int> value);
+var parse = typeof(Foo).GetMethod("TryParse")!.CreateInvoker<Parse>();
+parse(foo, "12", out var parsed); // parsed.Value == 12
+
 // Type-level name-indexed access (fast-member style)
 TypeAccessor accessor = TypeAccessor.Create(typeof(Foo));
 accessor[target, "Value"] = 42;
@@ -44,7 +49,8 @@ wrapped["Value"] = 42;
 - Value-type member writes persist into the box (`unbox` + managed pointer, not `unbox.any` copy)
 - `static` members: pass any/`null` target
 - Cached, thread-safe `TypeAccessor` keyed by `(Type, allowNonPublicAccessors)`
-- `net8.0` additionally exposes `CreateSpanInvoker` backed by BCL `MethodInvoker`/`ConstructorInvoker`
+- `net8.0` `CreateSpanInvoker` compiles a `Span<object?>` delegate over the caller's buffer (a span of references cannot be `stackalloc`'d). When dynamic code is unavailable it falls back to BCL `MethodInvoker` / `ConstructorInvoker`
+- `CreateInvoker<TDelegate>()` binds a public exact signature with `CreateDelegate`. Non-public exact signatures that `CreateDelegate` cannot bind, including `ref` / `out` / `in`, are compiled with `DynamicMethod`. Those parameters may instead be `ref` / `out` / `in Ref<T>` so the arguments are not boxed. Both compiled shapes throw when dynamic code is unavailable. `object[]` and `Span<object?>` invokers still box value-type arguments and return values, and dereference `ref` returns
 
 ### Explicit non-goals
 

@@ -343,6 +343,228 @@ namespace FastReflection.Emit
             return (Func<object?>)dm.CreateDelegate(typeof(Func<object?>));
         }
 
+#if NET8_0_OR_GREATER
+        internal static FastSpanInvoker CreateSpanInvoker(MethodInfo method)
+        {
+            if (method == null) throw new ArgumentNullException(nameof(method));
+            ThrowIfOpenGeneric(method);
+            if (method.ContainsGenericParameters)
+                throw new ArgumentException("Open generic methods must be constructed via MakeGenericMethod first.", nameof(method));
+            if (!EmitHelper.DynamicCodeSupported)
+                return System.Reflection.MethodInvoker.Create(method).Invoke;
+            return EmitSpanMethod(method);
+        }
+
+        internal static FastSpanConstructorInvoker CreateSpanInvoker(ConstructorInfo ctor)
+        {
+            if (ctor == null) throw new ArgumentNullException(nameof(ctor));
+            ThrowIfOpenGeneric(ctor);
+            if (!EmitHelper.DynamicCodeSupported)
+                return System.Reflection.ConstructorInvoker.Create(ctor).Invoke;
+            return EmitSpanConstructor(ctor);
+        }
+
+        private static FastSpanInvoker EmitSpanMethod(MethodInfo method)
+        {
+            var dt = DeclaringType(method);
+            var ps = method.GetParameters();
+            var dm = EmitHelper.CreateDynamicMethod(
+                $"FastReflection_span_{dt.Name}_{method.Name}",
+                typeof(object), new[] { typeof(object), typeof(Span<object?>) }, dt);
+            var il = dm.GetILGenerator();
+            EmitHelper.EmitCheckSpan(il, 1, ps.Length);
+            if (!method.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
+            var byrefs = EmitParameters(il, ps, 1, span: true);
+            EmitHelper.EmitCall(il, method);
+            EmitWriteBack(il, byrefs, 1, span: true);
+            if (method.ReturnType == typeof(void))
+                il.Emit(OpCodes.Ldnull);
+            else
+                EmitHelper.EmitConvertToObject(il, method.ReturnType);
+            il.Emit(OpCodes.Ret);
+            return (FastSpanInvoker)dm.CreateDelegate(typeof(FastSpanInvoker));
+        }
+
+        private static FastSpanConstructorInvoker EmitSpanConstructor(ConstructorInfo ctor)
+        {
+            var dt = DeclaringType(ctor);
+            var ps = ctor.GetParameters();
+            var dm = EmitHelper.CreateDynamicMethod(
+                $"FastReflection_span_new_{dt.Name}",
+                typeof(object), new[] { typeof(Span<object?>) }, dt);
+            var il = dm.GetILGenerator();
+            EmitHelper.EmitCheckSpan(il, 0, ps.Length);
+            var byrefs = EmitParameters(il, ps, 0, span: true);
+            il.Emit(OpCodes.Newobj, ctor);
+            EmitWriteBack(il, byrefs, 0, span: true);
+            if (dt.IsValueType) il.Emit(OpCodes.Box, dt);
+            il.Emit(OpCodes.Ret);
+            return (FastSpanConstructorInvoker)dm.CreateDelegate(typeof(FastSpanConstructorInvoker));
+        }
+#endif
+
+        internal static TDelegate CreateTypedInvoker<TDelegate>(MethodInfo method) where TDelegate : Delegate
+        {
+            if (method == null) throw new ArgumentNullException(nameof(method));
+            ThrowIfOpenGeneric(method);
+            if (method.ContainsGenericParameters)
+                throw new ArgumentException("Open generic methods must be constructed via MakeGenericMethod first.", nameof(method));
+
+            try
+            {
+                return (TDelegate)(object)method.CreateDelegate(typeof(TDelegate));
+            }
+            catch (Exception e) when (EmitHelper.IsDelegateBindFailure(e))
+            {
+            }
+
+            var invoke = typeof(TDelegate).GetMethod("Invoke")
+                ?? throw new ArgumentException("Delegate type has no Invoke method.", nameof(method));
+            EnsureTypedSignature(method, invoke);
+            if (!EmitHelper.DynamicCodeSupported)
+                throw new NotSupportedException(
+                    "This delegate requires dynamic code. CreateDelegate binds a public exact signature without it; Ref<T> adaptation and non-public methods that CreateDelegate cannot bind do not.");
+            return EmitTypedInvoker<TDelegate>(method, invoke);
+        }
+
+        private static TDelegate EmitTypedInvoker<TDelegate>(MethodInfo method, MethodInfo invoke) where TDelegate : Delegate
+        {
+            var dt = DeclaringType(method);
+            var dps = invoke.GetParameters();
+            var mps = method.GetParameters();
+            var paramTypes = new Type[dps.Length];
+            for (int i = 0; i < dps.Length; i++)
+                paramTypes[i] = dps[i].ParameterType;
+
+            var dm = EmitHelper.CreateDynamicMethod(
+                $"FastReflection_typed_{dt.Name}_{method.Name}",
+                invoke.ReturnType == typeof(void) ? null : invoke.ReturnType,
+                paramTypes, dt);
+            var il = dm.GetILGenerator();
+
+            int offset = 0;
+            if (!method.IsStatic)
+            {
+                offset = 1;
+                EmitLoadTypedTarget(il, dps[0].ParameterType);
+            }
+
+            for (int i = 0; i < mps.Length; i++)
+            {
+                int arg = i + offset;
+                il.Emit(OpCodes.Ldarg, arg);
+                if (!mps[i].ParameterType.IsByRef)
+                    continue;
+
+                // Exact by-ref already has the caller's address on the stack.
+                // Ref<T> adaptation addresses Value so the method writes it in place.
+                var held = dps[arg].ParameterType.GetElementType()!;
+                if (held == mps[i].ParameterType.GetElementType())
+                    continue;
+                var field = held.GetField(nameof(Ref<int>.Value))!;
+                il.Emit(OpCodes.Ldflda, field);
+            }
+
+            EmitHelper.EmitCall(il, method);
+            il.Emit(OpCodes.Ret);
+            return (TDelegate)(object)dm.CreateDelegate(typeof(TDelegate));
+        }
+
+        /// <summary>
+        /// Loads the instance argument. A by-ref class target is the address of the reference slot
+        /// and must be dereferenced before <c>callvirt</c>. A by-value struct is passed by address.
+        /// </summary>
+        private static void EmitLoadTypedTarget(ILGenerator il, Type targetType)
+        {
+            if (!targetType.IsByRef)
+            {
+                if (targetType.IsValueType)
+                    il.Emit(OpCodes.Ldarga_S, (byte)0);
+                else
+                    il.Emit(OpCodes.Ldarg_0);
+                return;
+            }
+
+            il.Emit(OpCodes.Ldarg_0);
+            var element = targetType.GetElementType()!;
+            if (!element.IsValueType)
+                il.Emit(OpCodes.Ldind_Ref);
+        }
+
+        private static void EnsureTypedSignature(MethodInfo method, MethodInfo invoke)
+        {
+            if (invoke.ReturnType != method.ReturnType)
+                throw Mismatch(method);
+
+            var dps = invoke.GetParameters();
+            var mps = method.GetParameters();
+            int offset = method.IsStatic ? 0 : 1;
+            if (dps.Length != mps.Length + offset)
+                throw Mismatch(method);
+
+            if (!method.IsStatic)
+                EnsureTarget(method, dps[0]);
+
+            for (int i = 0; i < mps.Length; i++)
+                EnsureArgument(method, mps[i], dps[i + offset]);
+        }
+
+        private static void EnsureTarget(MethodInfo method, ParameterInfo target)
+        {
+            var actual = target.ParameterType;
+            if (!actual.IsByRef && IsRefHolder(actual))
+                throw ByValueRef(method);
+            var type = actual.IsByRef ? actual.GetElementType()! : actual;
+            if (type != DeclaringType(method))
+                throw Mismatch(method);
+        }
+
+        private static void EnsureArgument(MethodInfo method, ParameterInfo methodParam, ParameterInfo delegateParam)
+        {
+            var delegateType = delegateParam.ParameterType;
+            if (!delegateType.IsByRef && IsRefHolder(delegateType))
+                throw ByValueRef(method);
+
+            if (!methodParam.ParameterType.IsByRef)
+            {
+                if (delegateType != methodParam.ParameterType)
+                    throw Mismatch(method);
+                return;
+            }
+
+            if (!delegateType.IsByRef)
+                throw Mismatch(method);
+
+            var held = delegateType.GetElementType()!;
+            var methodElement = methodParam.ParameterType.GetElementType()!;
+            bool exact = held == methodElement;
+            bool adapted = !exact && IsRefHolder(held, out var valueType) && valueType == methodElement;
+            if (!exact && !adapted)
+                throw Mismatch(method);
+            if (methodParam.IsOut != delegateParam.IsOut || methodParam.IsIn != delegateParam.IsIn)
+                throw Mismatch(method);
+        }
+
+        private static bool IsRefHolder(Type type) => IsRefHolder(type, out _);
+
+        private static bool IsRefHolder(Type type, out Type valueType)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Ref<>))
+            {
+                valueType = type.GetGenericArguments()[0];
+                return true;
+            }
+
+            valueType = null!;
+            return false;
+        }
+
+        private static ArgumentException ByValueRef(MethodInfo method)
+            => new("Ref<T> must be passed by ref, out, or in. Passing it by value drops writes.", nameof(method));
+
+        private static ArgumentException Mismatch(MethodInfo method)
+            => new("Delegate signature does not match this method. By-ref parameters must match exactly, or be ref, out, or in Ref<T>; every other parameter must match exactly.", nameof(method));
+
         // ============================== shared emit pieces ==============================
 
         private readonly struct ByRefLocal
@@ -364,8 +586,9 @@ namespace FastReflection.Emit
         /// <summary>
         /// Emits loads for all parameters. By-ref parameters are materialized into locals
         /// (initialized from <c>args[i]</c> when non-null) and passed by <c>ldloca</c>.
+        /// <paramref name="span"/> reads a <c>Span&lt;object?&gt;</c> argument instead of an object array (net8.0).
         /// </summary>
-        private static List<ByRefLocal>? EmitParameters(ILGenerator il, ParameterInfo[] ps, int argsIndex)
+        private static List<ByRefLocal>? EmitParameters(ILGenerator il, ParameterInfo[] ps, int argsIndex, bool span = false)
         {
             List<ByRefLocal>? byrefs = null;
             for (int i = 0; i < ps.Length; i++)
@@ -373,7 +596,7 @@ namespace FastReflection.Emit
                 var pt = ps[i].ParameterType;
                 if (!pt.IsByRef)
                 {
-                    EmitHelper.EmitLoadArrayElement(il, argsIndex, i, pt);
+                    EmitLoadArgument(il, argsIndex, i, pt, span);
                     continue;
                 }
 
@@ -383,9 +606,7 @@ namespace FastReflection.Emit
                 var done = il.DefineLabel();
 
                 // if (args[i] != null) loc = (el)args[i];
-                il.Emit(OpCodes.Ldarg, argsIndex);
-                EmitHelper.EmitLdcI4(il, i);
-                il.Emit(OpCodes.Ldelem_Ref);
+                EmitLoadArgumentObject(il, argsIndex, i, span);
                 il.Emit(OpCodes.Dup);
                 il.Emit(OpCodes.Brtrue_S, doInit);
                 il.Emit(OpCodes.Pop);
@@ -402,12 +623,22 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Writes by-ref locals back to <c>args[i]</c> (boxed). Skipped for <c>in</c> parameters.</summary>
-        private static void EmitWriteBack(ILGenerator il, List<ByRefLocal>? locals, int argsIndex)
+        private static void EmitWriteBack(ILGenerator il, List<ByRefLocal>? locals, int argsIndex, bool span = false)
         {
             if (locals == null) return;
             foreach (var b in locals)
             {
                 if (!b.WriteBack) continue;
+                if (span)
+                {
+#if NET8_0_OR_GREATER
+                    EmitHelper.EmitStoreSpanElement(il, argsIndex, b.Index, b.Local, b.ElementType);
+                    continue;
+#else
+                    throw new InvalidOperationException("Span invokers require net8.0.");
+#endif
+                }
+
                 il.Emit(OpCodes.Ldarg, argsIndex);
                 EmitHelper.EmitLdcI4(il, b.Index);
                 il.Emit(OpCodes.Ldloc, b.Local);
@@ -416,20 +647,41 @@ namespace FastReflection.Emit
             }
         }
 
+        private static void EmitLoadArgument(ILGenerator il, int argsIndex, int elementIndex, Type type, bool span)
+        {
+            if (span)
+            {
+#if NET8_0_OR_GREATER
+                EmitHelper.EmitLoadSpanElement(il, argsIndex, elementIndex, type);
+                return;
+#else
+                throw new InvalidOperationException("Span invokers require net8.0.");
+#endif
+            }
+
+            EmitHelper.EmitLoadArrayElement(il, argsIndex, elementIndex, type);
+        }
+
+        private static void EmitLoadArgumentObject(ILGenerator il, int argsIndex, int elementIndex, bool span)
+        {
+            if (span)
+            {
+#if NET8_0_OR_GREATER
+                EmitHelper.EmitLoadSpanElementObject(il, argsIndex, elementIndex);
+                return;
+#else
+                throw new InvalidOperationException("Span invokers require net8.0.");
+#endif
+            }
+
+            il.Emit(OpCodes.Ldarg, argsIndex);
+            EmitHelper.EmitLdcI4(il, elementIndex);
+            il.Emit(OpCodes.Ldelem_Ref);
+        }
+
         /// <summary>Loads a member value to object; dereferences by-ref member types (ref-returning properties).</summary>
         private static void EmitLoadMemberValue(ILGenerator il, Type memberType)
-        {
-            if (memberType.IsByRef)
-            {
-                var el = memberType.GetElementType()!;
-                il.Emit(OpCodes.Ldobj, el);
-                EmitHelper.EmitConvertToObject(il, el);
-            }
-            else
-            {
-                EmitHelper.EmitConvertToObject(il, memberType);
-            }
-        }
+            => EmitHelper.EmitConvertToObject(il, memberType);
 
         // ============================== helpers ==============================
 

@@ -70,13 +70,23 @@ namespace FastReflection.Emit
                 il.Emit(OpCodes.Castclass, type);
         }
 
-        /// <summary>Converts the value on the stack to <see cref="object"/> (boxes when necessary).</summary>
+        /// <summary>
+        /// Converts the value on the stack to <see cref="object"/> (boxes when necessary).
+        /// A by-ref type is dereferenced first, so a <c>ref</c> return is boxed as its element value rather than as the address.
+        /// </summary>
         internal static void EmitConvertToObject(ILGenerator il, Type type)
         {
-            if (type.IsByRef) type = type.GetElementType()!;
+            if (type.IsByRef)
+            {
+                type = type.GetElementType()!;
+                il.Emit(OpCodes.Ldobj, type);
+            }
             if (type.IsValueType || type.IsGenericParameter)
                 il.Emit(OpCodes.Box, type);
         }
+
+        internal static bool IsDelegateBindFailure(Exception e)
+            => e is ArgumentException or MethodAccessException or MemberAccessException or MissingMethodException or InvalidOperationException;
 
         /// <summary>Emits <c>call</c> for statics/value-type methods, <c>callvirt</c> otherwise.</summary>
         internal static void EmitCall(ILGenerator il, MethodInfo method)
@@ -123,6 +133,57 @@ namespace FastReflection.Emit
             il.Emit(OpCodes.Throw);
             il.MarkLabel(ok);
         }
+
+#if NET8_0_OR_GREATER
+        private static readonly MethodInfo s_spanGetItem =
+            typeof(Span<object?>).GetProperty("Item")!.GetGetMethod()!;
+
+        private static readonly MethodInfo s_spanGetLength =
+            typeof(Span<object?>).GetProperty(nameof(Span<object?>.Length))!.GetGetMethod()!;
+
+        /// <summary>Loads <c>args[elementIndex]</c> from the <see cref="Span{T}"/> at <paramref name="argsParamIndex"/> and converts it to <paramref name="type"/>.</summary>
+        internal static void EmitLoadSpanElement(ILGenerator il, int argsParamIndex, int elementIndex, Type type)
+        {
+            EmitLoadSpanElementObject(il, argsParamIndex, elementIndex);
+            EmitConvertFromObject(il, type);
+        }
+
+        /// <summary>Pushes the object reference stored at <c>args[elementIndex]</c> without unboxing.</summary>
+        internal static void EmitLoadSpanElementObject(ILGenerator il, int argsParamIndex, int elementIndex)
+        {
+            il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
+            EmitLdcI4(il, elementIndex);
+            il.Emit(OpCodes.Call, s_spanGetItem);
+            il.Emit(OpCodes.Ldind_Ref);
+        }
+
+        /// <summary>Boxes <paramref name="local"/> and stores it into <c>args[elementIndex]</c>.</summary>
+        internal static void EmitStoreSpanElement(ILGenerator il, int argsParamIndex, int elementIndex, LocalBuilder local, Type elementType)
+        {
+            il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
+            EmitLdcI4(il, elementIndex);
+            il.Emit(OpCodes.Call, s_spanGetItem);
+            il.Emit(OpCodes.Ldloc, local);
+            EmitConvertToObject(il, elementType);
+            il.Emit(OpCodes.Stind_Ref);
+        }
+
+        /// <summary>Emits <c>if (args.Length &lt; required) throw new ArgumentException;</c>. A span is never null.</summary>
+        internal static void EmitCheckSpan(ILGenerator il, int argsParamIndex, int requiredCount)
+        {
+            if (requiredCount == 0) return;
+
+            var ok = il.DefineLabel();
+            il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
+            il.Emit(OpCodes.Call, s_spanGetLength);
+            EmitLdcI4(il, requiredCount);
+            il.Emit(OpCodes.Bge_S, ok);
+            il.Emit(OpCodes.Ldstr, "args does not contain enough elements for this call.");
+            il.Emit(OpCodes.Newobj, typeof(ArgumentException).GetConstructor(new[] { typeof(string) })!);
+            il.Emit(OpCodes.Throw);
+            il.MarkLabel(ok);
+        }
+#endif
 
         internal static void EmitLdcI4(ILGenerator il, int value)
         {

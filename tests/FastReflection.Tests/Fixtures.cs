@@ -36,6 +36,9 @@ namespace FastReflection.Tests
         private Sample(int v) { Value = v; }
 
         public int Add(int a, int b) => a + b;
+        public int Bump() { Value++; return Value; }
+        public string Tag = "tag";
+        public ref string RefTag() => ref Tag;
         public static int StaticAdd(int a, int b) => a + b;
         public void Nothing() { }
         public bool TryParse(string s, out int v)
@@ -45,6 +48,8 @@ namespace FastReflection.Tests
             return false;
         }
         public void Swap(ref int a, ref int b) { var t = a; a = b; b = t; }
+        public static void StaticSwap(ref int a, ref int b) { var t = a; a = b; b = t; }
+        private bool TrySecret(out int v) { v = 7; return true; }
         public int SumIn(in int a, in int b) => a + b;
         private int Secret() => 42;
         public T Echo<T>(T t) => t;
@@ -68,6 +73,8 @@ namespace FastReflection.Tests
             X = x;
             Y = y;
         }
+
+        private void SecretSwap(ref int a, ref int b) { var t = a; a = b; b = t; }
     }
 
     public class NoPublicCtor
