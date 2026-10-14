@@ -1,19 +1,19 @@
 namespace FastReflection
 {
     /// <summary>
-    /// Per-instance member accessor: wraps a target object so callers read/write
-    /// members by name without repeating the target. Backed by a cached <see cref="TypeAccessor"/>.
+    /// A <see cref="TypeAccessor"/> of one object's runtime type, at one visibility, bound to that object.
+    /// Not a type accessor of the variable's declared type.
     /// </summary>
     public abstract class ObjectAccessor
     {
-        /// <summary>Name-indexed member access on the wrapped target.</summary>
-        /// <exception cref="MissingMemberException">Unknown member, or member not readable/writable.</exception>
+        /// <summary>Reads or writes the Member with this case-sensitive name on the bound object.</summary>
+        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor, or the Member cannot be read or written. An existing Member that cannot be written is not missing; both cases share this exception type.</exception>
         public abstract object? this[string name] { get; set; }
 
         /// <summary>The wrapped object.</summary>
         public abstract object? Target { get; }
 
-        /// <summary>Creates an accessor for <paramref name="target"/>.</summary>
+        /// <summary>Binds <paramref name="target"/> to the type accessor of its runtime type. <paramref name="allowNonPublicAccessors"/> selects the non-public type accessor.</summary>
         public static ObjectAccessor Create(object target, bool allowNonPublicAccessors = false)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));

@@ -4,23 +4,22 @@ using FastReflection.Emit;
 namespace FastReflection
 {
     /// <summary>
-    /// Turns <see cref="PropertyInfo"/>, <see cref="FieldInfo"/>, <see cref="MethodInfo"/> and
-    /// <see cref="ConstructorInfo"/> into compiled delegates. Delegates are created once and
-    /// called like normal code — no reflection cost on the hot path.
+    /// Builds an access over a property, field, method, or constructor already known at runtime.
+    /// An access is still that access when ordinary reflection completes it, and it fails when reflection cannot.
     /// <para>
-    /// When runtime code generation is unavailable (AOT/trimmed interpreters), factories fall back
-    /// to ordinary reflection. <see cref="CreateInvoker{TDelegate}(MethodInfo)"/> still binds a public
-    /// exact signature with <c>CreateDelegate</c>; <see cref="Ref{T}"/> adaptation and non-public methods
-    /// that <c>CreateDelegate</c> cannot bind throw <see cref="NotSupportedException"/> instead.
+    /// <see cref="Unreflect{TDelegate}(MethodInfo)"/> and a public exact
+    /// <see cref="CreateInvoker{TDelegate}(MethodInfo)"/> bind are not accesses.
+    /// <see cref="Ref{T}"/> adaptation and non-public methods that <c>CreateDelegate</c> cannot bind are accesses,
+    /// and they throw <see cref="NotSupportedException"/> when dynamic code is unavailable.
     /// </para>
     /// </summary>
     public static class ReflectionExtensions
     {
-        // ---------------- Layer 1: exact-signature pass-through ----------------
+        // Exact bind. Not an access.
 
         /// <summary>
-        /// Creates a delegate of the exact signature via <c>MethodInfo.CreateDelegate</c>.
-        /// Zero adaptation cost when the signature is known at compile time.
+        /// Binds <typeparamref name="TDelegate"/> with <c>MethodInfo.CreateDelegate</c>.
+        /// Not an access: no adaptation, and no fallback to reflection.
         /// </summary>
         public static TDelegate Unreflect<TDelegate>(this MethodInfo method) where TDelegate : Delegate
         {
@@ -28,17 +27,17 @@ namespace FastReflection
             return (TDelegate)(object)method.CreateDelegate(typeof(TDelegate));
         }
 
-        // ---------------- Layer 2/3: property accessors ----------------
+        // Access over a non-indexer property.
 
-        /// <summary>Compiles an open-instance getter: <c>(object target) => (object)((T)target).Prop</c>. Works for non-public accessors and static properties (target ignored).</summary>
+        /// <summary>An access over a non-indexer property: <c>(object target) => (object)value</c>. A static property has no target. A ref return is the current value, not a live reference. Indexer properties are not subjects of this access.</summary>
         public static Func<object?, object?> CreateGetter(this PropertyInfo property)
             => AccessorEmitter.CreateGetter(property);
 
-        /// <summary>Compiles an open-instance setter: <c>(object target, object value) => ((T)target).Prop = (V)value</c>. Supports write-through for <see langword="ref"/>-returning properties without a setter.</summary>
+        /// <summary>An access that writes a non-indexer property. A static property has no target. A ref-returning property with no setter can still be written, unless it is <see langword="ref"/> <see langword="readonly"/>. That write does not make the property a writable <see cref="Member"/>.</summary>
         public static Action<object?, object?> CreateSetter(this PropertyInfo property)
             => AccessorEmitter.CreateSetter(property);
 
-        /// <summary>Typed getter. Zero-adaptation when <typeparamref name="TDeclaring"/>/<typeparamref name="TValue"/> match the signature; otherwise wraps the open getter.</summary>
+        /// <summary>Typed get delegate. An exact bind is not an access. When that bind fails, the result is an access over <see cref="CreateGetter(PropertyInfo)"/>.</summary>
         public static Func<TDeclaring, TValue> CreateGetter<TDeclaring, TValue>(this PropertyInfo property)
         {
             if (property == null) throw new ArgumentNullException(nameof(property));
@@ -50,7 +49,7 @@ namespace FastReflection
             return target => (TValue)open(target)!;
         }
 
-        /// <summary>Typed setter; falls back to the open setter when the exact signature cannot be bound.</summary>
+        /// <summary>Typed set delegate. An exact bind is not an access. When that bind fails, the result is an access over <see cref="CreateSetter(PropertyInfo)"/>.</summary>
         public static Action<TDeclaring, TValue> CreateSetter<TDeclaring, TValue>(this PropertyInfo property)
         {
             if (property == null) throw new ArgumentNullException(nameof(property));
@@ -62,17 +61,17 @@ namespace FastReflection
             return (target, value) => open(target, value);
         }
 
-        // ---------------- Layer 2/3: field accessors ----------------
+        // Access over a field.
 
-        /// <summary>Compiles an open-instance field getter.</summary>
+        /// <summary>An access over a field. A static field has no target.</summary>
         public static Func<object?, object?> CreateGetter(this FieldInfo field)
             => AccessorEmitter.CreateGetter(field);
 
-        /// <summary>Compiles an open-instance field setter. Throws for <see langword="readonly"/>/<see langword="const"/> fields.</summary>
+        /// <summary>An access that writes a field. A static field has no target. Throws for a <see langword="readonly"/> or <see langword="const"/> field.</summary>
         public static Action<object?, object?> CreateSetter(this FieldInfo field)
             => AccessorEmitter.CreateSetter(field);
 
-        /// <summary>Typed field getter; wraps the open getter (FieldInfo has no CreateDelegate).</summary>
+        /// <summary>Typed get delegate. An access over <see cref="CreateGetter(FieldInfo)"/>; <see cref="FieldInfo"/> has no exact bind.</summary>
         public static Func<TDeclaring, TValue> CreateGetter<TDeclaring, TValue>(this FieldInfo field)
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
@@ -80,7 +79,7 @@ namespace FastReflection
             return target => (TValue)open(target)!;
         }
 
-        /// <summary>Typed field setter; wraps the open setter (FieldInfo has no CreateDelegate).</summary>
+        /// <summary>Typed set delegate. An access over <see cref="CreateSetter(FieldInfo)"/>; <see cref="FieldInfo"/> has no exact bind.</summary>
         public static Action<TDeclaring, TValue> CreateSetter<TDeclaring, TValue>(this FieldInfo field)
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
@@ -88,24 +87,23 @@ namespace FastReflection
             return (target, value) => open(target, value);
         }
 
-        // ---------------- Layer 3: unified untyped invokers ----------------
+        // Access over a method or constructor.
 
         /// <summary>
-        /// Compiles <c>(target, args) => result</c> for any method — instance, static, non-public.
-        /// <see langword="ref"/>/<see langword="out"/> arguments are written back into the args array.
-        /// A <see langword="ref"/> return is dereferenced and boxed as its element value.
+        /// An access over a method: <c>(target, args) => result</c>, including a non-public method.
+        /// A static method has no target. <see langword="ref"/>/<see langword="out"/> values are written back into the array and boxed.
+        /// A <see langword="ref"/> return is the current value, boxed, not a live reference.
         /// </summary>
         public static FastInvoker CreateInvoker(this MethodInfo method)
             => AccessorEmitter.CreateInvoker(method);
 
         /// <summary>
-        /// Creates a strongly typed invoker.
-        /// A public exact signature is bound with <c>CreateDelegate</c> and does not need dynamic code.
-        /// Non-public exact signatures that <c>CreateDelegate</c> cannot bind, including
-        /// <see langword="ref"/> / <see langword="out"/> / <see langword="in"/> parameters, are compiled
-        /// with <c>DynamicMethod</c>. Those parameters may instead be declared as <c>ref</c> / <c>out</c> /
-        /// <c>in</c> <see cref="Ref{T}"/>; that shape is also compiled, and the method writes
-        /// <see cref="Ref{T}.Value"/> in place, without boxing.
+        /// Binds <typeparamref name="TDelegate"/> to the method.
+        /// A public exact signature is bound with <c>CreateDelegate</c> and is not an access.
+        /// A signature <c>CreateDelegate</c> cannot bind, including a non-public method and a
+        /// <see cref="Ref{T}"/> passed by <see langword="ref"/>, <see langword="out"/>, or <see langword="in"/>,
+        /// is an access. That access reads and writes <see cref="Ref{T}.Value"/> in place, without boxing,
+        /// and throws <see cref="NotSupportedException"/> when dynamic code is unavailable.
         /// A <see langword="ref"/> or <see langword="in"/> class target is dereferenced before the call.
         /// </summary>
         /// <exception cref="ArgumentException">The delegate does not match, or <see cref="Ref{T}"/> is passed by value.</exception>
@@ -113,34 +111,34 @@ namespace FastReflection
         public static TDelegate CreateInvoker<TDelegate>(this MethodInfo method) where TDelegate : Delegate
             => AccessorEmitter.CreateTypedInvoker<TDelegate>(method);
 
-        /// <summary>Compiles <c>args => instance</c> for any constructor, including non-public ones.</summary>
+        /// <summary>An access over a constructor, including a non-public one: <c>args => instance</c>.</summary>
         public static FastConstructorInvoker CreateInvoker(this ConstructorInfo ctor)
             => AccessorEmitter.CreateInvoker(ctor);
 
-        /// <summary>Compiles a parameterless-constructor factory.</summary>
+        /// <summary>An access over a parameterless constructor.</summary>
         public static Func<object?> CreateFactory(this ConstructorInfo ctor)
             => AccessorEmitter.CreateFactory(ctor);
 
         /// <summary>
-        /// Compiles a factory for <paramref name="type"/>'s parameterless constructor
-        /// (<paramref name="nonPublic"/> allows non-public ctors). Value types get a <c>default</c> factory.
+        /// An access over <paramref name="type"/>'s parameterless constructor.
+        /// <paramref name="nonPublic"/> selects a non-public constructor.
+        /// A value type with no parameterless constructor yields its default value, which is not an access.
         /// </summary>
         public static Func<object?> CreateFactory(this Type type, bool nonPublic = false)
             => AccessorEmitter.CreateFactory(type, nonPublic);
 
 #if NET8_0_OR_GREATER
         /// <summary>
-        /// Span-based invoker compiled with <c>DynamicMethod</c>.
-        /// The caller owns the <see cref="Span{T}"/> buffer (<c>Span&lt;object?&gt;</c> cannot be <c>stackalloc</c>'d).
-        /// Value-type arguments and the return value are still boxed.
-        /// A <see langword="ref"/> return is dereferenced, then boxed.
+        /// An access over a method that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
+        /// A span of references cannot be <c>stackalloc</c>'d. Value-type arguments and the return value are still boxed.
+        /// A <see langword="ref"/> return is the current value, then boxed.
         /// Falls back to <see cref="System.Reflection.MethodInvoker"/> when dynamic code is unavailable.
         /// </summary>
         public static FastSpanInvoker CreateSpanInvoker(this MethodInfo method)
             => AccessorEmitter.CreateSpanInvoker(method);
 
         /// <summary>
-        /// Span-based constructor invoker compiled with <c>DynamicMethod</c>.
+        /// An access over a constructor that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
         /// Falls back to <see cref="System.Reflection.ConstructorInvoker"/> when dynamic code is unavailable.
         /// </summary>
         public static FastSpanConstructorInvoker CreateSpanInvoker(this ConstructorInfo ctor)

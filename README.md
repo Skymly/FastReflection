@@ -1,6 +1,8 @@
 # FastReflection
 
-Fast .NET reflection member access via compiled delegates (`DynamicMethod`) — with transparent fallback to plain reflection when dynamic code is unavailable (AOT/trimmed environments). `CreateInvoker<TDelegate>()` still binds a public exact signature without dynamic code; `Ref<T>` adaptation and non-public methods that `CreateDelegate` cannot bind throw instead of falling back.
+Turns a property, field, method, or constructor already known at runtime into a reusable access. When dynamic code is available the hot path is a compiled delegate; when it is not, an access that ordinary reflection can complete still completes, and one it cannot complete fails. A bind with no adaptation is not an access.
+
+A type accessor names the instance properties and fields of a closed type. This library does not include dynamic binding, nullability or XML-doc meaning, or compile-time generated access. Terms live in [CONTEXT.md](CONTEXT.md).
 
 **Target frameworks**: `net462`, `netstandard2.0`, `net8.0`
 
@@ -10,52 +12,56 @@ Fast .NET reflection member access via compiled delegates (`DynamicMethod`) — 
 using FastReflection;
 using System.Reflection;
 
-// Layer 3 — unified untyped invokers (signature unknown at compile time)
+// An access over a method. ref/out are written back into the array; value types are boxed.
 MethodInfo add = typeof(Foo).GetMethod("Add")!;
 FastInvoker invoker = add.CreateInvoker();
-object? result = invoker(target, new object?[] { 2, 3 });   // ref/out written back into the array
+object? result = invoker(target, new object?[] { 2, 3 });
 
-// Layer 2 — open member accessors
+// An access over a non-indexer property. A static access has no target.
 Func<object?, object?> get = typeof(Foo).GetProperty("Value")!.CreateGetter();
 Action<object?, object?> set = typeof(Foo).GetProperty("Value")!.CreateSetter();
 set(target, 42);
 
-// Layer 1 — exact-signature delegates when the signature is known statically
+// Not an access: exact signature, no adaptation, no fallback.
 var typed = add.Unreflect<Func<Foo, int, int, int>>();
 int sum = typed(foo, 2, 3);
 
-// ref/out without boxing. object[] and Span<object?> still box value-type arguments.
+// Ref stands in for one by-ref parameter. The access reads and writes Value in place.
 delegate bool Parse(Foo target, string text, out Ref<int> value);
 var parse = typeof(Foo).GetMethod("TryParse")!.CreateInvoker<Parse>();
 parse(foo, "12", out var parsed); // parsed.Value == 12
 
-// Type-level name-indexed access (fast-member style)
-TypeAccessor accessor = TypeAccessor.Create(typeof(Foo));
-accessor[target, "Value"] = 42;
-int ord = accessor.TryGetOrdinal("Value", out var i) ? i : -1;
-object? v = accessor.GetValue(target, ord);   // hot path: skips the name lookup
-object? instance = accessor.CreateNew();      // parameterless ctor (works for private ctors with allowNonPublicAccessors)
+// Type accessor: the Members of a closed type at one visibility. Names are case-sensitive.
+TypeAccessor typeAccessor = TypeAccessor.Create(typeof(Foo));
+typeAccessor[target, "Value"] = 42;
+int ord = typeAccessor.TryGetOrdinal("Value", out var i) ? i : -1;
+object? v = typeAccessor.GetValue(target, ord); // Ordinal is an index in this type accessor, not a name
+object? instance = typeAccessor.CreateNew();    // not a Member; a value-type default is not an access
 
-// Per-instance wrapper
+// Object accessor: the type accessor of the object's runtime type, bound to that object.
 ObjectAccessor wrapped = ObjectAccessor.Create(target);
 wrapped["Value"] = 42;
 ```
 
 ### Notable capabilities
 
-- Non-public members/accessors via `DynamicMethod(skipVisibility)` — no `BindingFlags` juggling needed once you hold the `MemberInfo`
-- `ref`/`out` parameters written back into the args array; `in` supported
-- Write-through assignment to `ref`-returning properties without a setter (`ref readonly` rejected)
-- Value-type member writes persist into the box (`unbox` + managed pointer, not `unbox.any` copy)
-- `static` members: pass any/`null` target
-- Cached, thread-safe `TypeAccessor` keyed by `(Type, allowNonPublicAccessors)`
-- `net8.0` `CreateSpanInvoker` compiles a `Span<object?>` delegate over the caller's buffer (a span of references cannot be `stackalloc`'d). When dynamic code is unavailable it falls back to BCL `MethodInvoker` / `ConstructorInvoker`
-- `CreateInvoker<TDelegate>()` binds a public exact signature with `CreateDelegate`. Non-public exact signatures that `CreateDelegate` cannot bind, including `ref` / `out` / `in`, are compiled with `DynamicMethod`. Those parameters may instead be `ref` / `out` / `in Ref<T>` so the arguments are not boxed. Both compiled shapes throw when dynamic code is unavailable. `object[]` and `Span<object?>` invokers still box value-type arguments and return values, and dereference `ref` returns
+- An access can be built over a non-public property, field, method, or constructor once you hold the reflection object. The public and non-public type accessors of the same closed type are different.
+- An `object[]` or `Span<object?>` access writes `ref`/`out` back into the buffer and boxes value-type arguments and returns. A `Ref<T>` is not that buffer slot.
+- A ref-returning property with no setter can still have a write access, unless it is `ref readonly`. That write does not make the property a writable Member.
+- A write to a boxed value type updates that box. See [ADR 0001](docs/adr/0001-boxed-value-writes-update-the-box.md).
+- A static access has no target. An instance access requires a non-null compatible target: the runtime type is the declaring type, a subtype, or an implementation, or the target is a box of that value type.
+- Indexer properties are not Members, and they are not subjects of `CreateGetter` / `CreateSetter`. Call `get_Item` / `set_Item` through `CreateInvoker`.
+- An open generic type has no type accessor. An open generic method must be constructed before an access can cover it.
+- `CreateInvoker<TDelegate>()` binds a public exact signature with `CreateDelegate`; that bind is not an access. Adaptation, including `Ref<T>` and non-public methods `CreateDelegate` cannot bind, is an access and throws when dynamic code is unavailable.
+- `net8.0` `CreateSpanInvoker` is an access over the caller's `Span<object?>` buffer (a span of references cannot be `stackalloc`'d). It still boxes. When dynamic code is unavailable it falls back to BCL `MethodInvoker` / `ConstructorInvoker`.
+- `CanWrite` means that type accessor can write the Member, including an init-only property after construction. It does not mean C# can assign it, and `required` is not enforced.
+- A name identifies at most one Member. Which declaration wins is not promised. An ordinal is not an identity outside the type accessor you hold.
 
 ### Explicit non-goals
 
 - NRT/XML-docs semantic enrichment — use [Namotion.Reflection](https://github.com/RicoSuter/Namotion.Reflection)
-- `IDynamicMetaObjectProvider`/`dynamic` dispatch — that's [dynamitey](https://github.com/ekonbenefits/dynamitey) territory
+- `IDynamicMetaObjectProvider` / `dynamic` dispatch — that's [dynamitey](https://github.com/ekonbenefits/dynamitey) territory
+- Compile-time source-generated access
 
 ## Benchmarks (BenchmarkDotNet ShortRun, local machine)
 
@@ -66,18 +72,20 @@ received the runtime-level speedups added in .NET 7+:
 |---|---:|---:|
 | DirectCall | ~0.6 ns | ~0 ns |
 | PropertyInfo.GetValue | 109.84 ns | 9.54 ns |
-| **FastReflection getter** | **8.19 ns (13× faster)** | **5.37 ns** |
-| TypeAccessor[name] | 35.95 ns | 13.56 ns |
-| TypeAccessor[ordinal] | 7.01 ns | 6.03 ns |
+| **CreateGetter** | **8.19 ns (13× faster)** | **5.37 ns** |
+| Type accessor by name | 35.95 ns | 13.56 ns |
+| Type accessor by ordinal | 7.01 ns | 6.03 ns |
 | MethodInfo.Invoke | 216.34 ns | 18.58 ns |
 | BCL MethodInvoker | n/a | 11.36 ns |
-| **FastReflection invoker** | **6.39 ns (34× faster)** | **5.59 ns** |
+| **CreateInvoker** | **6.39 ns (34× faster)** | **5.59 ns** |
 
 (24 B allocated per reflection call = the boxed `int` return value, common to all paths.)
 
 ## Layout
 
 ```
+CONTEXT.md                      domain glossary
+docs/adr/                       decision records
 src/FastReflection/             library (net462;netstandard2.0;net8.0)
 tests/FastReflection.Tests/     xunit (net472 → net462 build; net6.0 → netstandard2.0; net8.0)
 benchmarks/                     BenchmarkDotNet (net472;net8.0)
@@ -103,5 +111,4 @@ CI is driven by [Nuke](https://nuke.build) (`build.cmd <Target>`: `Clean`/`Resto
 
 ```bash
 git tag v0.1.0 && git push --tags   # triggers nuget.org publish
-```
 ```

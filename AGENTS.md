@@ -12,16 +12,16 @@
 - `src/FastReflection/` — the library, multi-targeted `net462;netstandard2.0;net8.0`
   - `ReflectionExtensions.cs` — public API surface (CreateGetter/Setter/Invoker/Factory, Unreflect, net8 Span invokers)
   - `Emit/EmitHelper.cs` — DynamicMethod factory + IL micro-helpers + `DynamicCodeSupported` probe
-  - `Emit/AccessorEmitter.cs` — IL emit for accessors/invokers/factories + reflection fallbacks
-  - `TypeAccessor.cs`, `ObjectAccessor.cs`, `Member.cs` — name-indexed access layer
+  - `Emit/AccessorEmitter.cs` — IL emit for accesses and exact binds, plus reflection fallback
+  - `TypeAccessor.cs`, `ObjectAccessor.cs`, `Member.cs` — type accessor, object accessor, and Member
   - `Polyfills.cs` — `RequiresUnreferencedCode`/`RequiresDynamicCode` for downlevel TFMs
 
 ## Conventions / gotchas
 
 - net462/netstandard2.0 have no `MethodInfo.CreateDelegate<T>()` — use `CreateDelegate(Type)` + cast.
 - `RuntimeFeature` doesn't exist on net462/netstandard2.0 — dynamic-code probe is `#if`'d per TFM.
-- Ref-returning property without setter is writable via getter + `stobj`; `ref readonly` detected via `InAttribute`/`IsReadOnlyAttribute` modreq.
-- Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`.
+- Ref-returning property without setter is writable via getter + `stobj`; that write is an access, not `Member.CanWrite`. `ref readonly` is detected via `InAttribute`/`IsReadOnlyAttribute` modreq and has no write access.
+- Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`. See `docs/adr/0001-boxed-value-writes-update-the-box.md`.
 - Tests disable xunit parallelization assembly-wide because `FallbackTests` toggles the global `EmitHelper.ForceReflectionFallback` flag.
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0 have them in-box.
 

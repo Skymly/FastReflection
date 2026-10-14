@@ -5,10 +5,11 @@ using FastReflection.Emit;
 namespace FastReflection
 {
     /// <summary>
-    /// Fast member access for a type known at runtime. Resolves a member name to a
-    /// per-member compiled delegate once, then dispatches by dictionary lookup +
-    /// integer ordinal — the string never reaches the hot path twice.
-    /// Accessors are cached per <see cref="Type"/> and thread-safe.
+    /// The Members of one closed type at one visibility.
+    /// A name is case-sensitive and identifies at most one Member.
+    /// The public and non-public type accessors of the same type are different, and each is cached.
+    /// A target must be non-null, and its runtime type must be this type, a subtype, or an implementation of it.
+    /// A value type requires a box.
     /// </summary>
     public abstract class TypeAccessor
     {
@@ -31,9 +32,9 @@ namespace FastReflection
         private static readonly ConcurrentDictionary<CacheKey, TypeAccessor> s_cache = new();
 
         /// <summary>
-        /// Gets (creating on first use) the accessor for <paramref name="type"/>.
-        /// <paramref name="allowNonPublicAccessors"/> widens the member set to non-public
-        /// members and non-public property accessors.
+        /// Gets the type accessor for <paramref name="type"/> at one visibility.
+        /// <paramref name="allowNonPublicAccessors"/> selects the non-public type accessor; otherwise the public one.
+        /// An open generic type has no type accessor.
         /// </summary>
         public static TypeAccessor Create(Type type, bool allowNonPublicAccessors = false)
         {
@@ -45,29 +46,29 @@ namespace FastReflection
                 static k => new RuntimeTypeAccessor(k.Type, k.NonPublic));
         }
 
-        /// <summary>The type this accessor was built for.</summary>
+        /// <summary>The closed type this type accessor was built for.</summary>
         public abstract Type Type { get; }
 
-        /// <summary>Name-indexed member access (ordinal comparison, case-sensitive).</summary>
-        /// <exception cref="MissingMemberException">Unknown member, or member not readable/writable.</exception>
+        /// <summary>Reads or writes the Member with this case-sensitive name on a compatible target.</summary>
+        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor, or the Member cannot be read or written. An existing Member that cannot be written is not missing; both cases share this exception type.</exception>
         public abstract object? this[object? target, string name] { get; set; }
 
-        /// <summary>Ordinal-indexed read — the allocation-free hot path for known members.</summary>
+        /// <summary>Reads the Member at <paramref name="ordinal"/> in this type accessor. An ordinal is not a name and not a durable identity.</summary>
         public abstract object? GetValue(object? target, int ordinal);
 
-        /// <summary>Ordinal-indexed write.</summary>
+        /// <summary>Writes the Member at <paramref name="ordinal"/> in this type accessor.</summary>
         public abstract void SetValue(object? target, int ordinal, object? value);
 
-        /// <summary>Maps a member name to its ordinal for use with <see cref="GetValue(object?, int)"/>.</summary>
+        /// <summary>Maps a case-sensitive Member name to its ordinal in this type accessor.</summary>
         public abstract bool TryGetOrdinal(string name, out int ordinal);
 
-        /// <summary>All reachable members (properties and fields; indexer properties excluded).</summary>
+        /// <summary>The Members of this type accessor: instance properties and fields. Not methods, events, indexers, constants, or static properties and fields.</summary>
         public abstract IReadOnlyList<Member> GetMembers();
 
-        /// <summary>Whether <see cref="CreateNew"/> can produce instances.</summary>
+        /// <summary>Whether <see cref="CreateNew"/> can produce an instance. Instance creation is not a Member.</summary>
         public abstract bool CreateNewSupported { get; }
 
-        /// <summary>Creates an instance via the parameterless constructor (or <c>default</c> for value types).</summary>
+        /// <summary>Produces an instance via a parameterless constructor, or the default value of a value type. The constructor call is an access; a value type's default value is not. Not a Member of this type accessor.</summary>
         public abstract object CreateNew();
     }
 

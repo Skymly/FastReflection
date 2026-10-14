@@ -7,7 +7,7 @@
     <PackageId>Skymly.FastReflection</PackageId>
     <Version>0.1.0</Version>
     <Authors>Skymly</Authors>
-    <Description>Fast reflection member access via compiled delegates (DynamicMethod) with graceful fallback. Supports .NET Framework 4.6.2+, .NET Core and .NET 8+.</Description>
+    <Description>Reusable access over a runtime-known property, field, method, or constructor, and a type accessor for the instance properties and fields of a closed type. Falls back to reflection when dynamic code is unavailable. Supports .NET Framework 4.6.2+, .NET Core, and .NET 8+.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>reflection;emit;il;delegate;performance</PackageTags>

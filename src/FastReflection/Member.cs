@@ -2,7 +2,7 @@ using System.Reflection;
 
 namespace FastReflection
 {
-    /// <summary>Describes a property or field reachable through a <see cref="TypeAccessor"/>.</summary>
+    /// <summary>An instance property or field in one <see cref="TypeAccessor"/>, identified by a case-sensitive name. Not a method, event, indexer, constant, or static member.</summary>
     public sealed class Member
     {
         internal Member(MemberInfo info, Type memberType, int ordinal, bool canRead, bool canWrite)
@@ -15,7 +15,7 @@ namespace FastReflection
             CanWrite = canWrite;
         }
 
-        /// <summary>Member name.</summary>
+        /// <summary>Case-sensitive name of this Member in its type accessor.</summary>
         public string Name { get; }
 
         /// <summary>Property type or field type.</summary>
@@ -24,13 +24,13 @@ namespace FastReflection
         /// <summary>The underlying <see cref="PropertyInfo"/> or <see cref="FieldInfo"/> — exposed for attribute/metadata inspection.</summary>
         public MemberInfo MemberInfo { get; }
 
-        /// <summary>Index into the accessor's member table; usable with <see cref="TypeAccessor.GetValue(object?, int)"/>.</summary>
+        /// <summary>Index of this Member in its type accessor. Not a name, and not an identity outside that type accessor.</summary>
         public int Ordinal { get; }
 
-        /// <summary>Whether the member can be read through this accessor.</summary>
+        /// <summary>Whether this type accessor can read this Member. The Member remains a Member when this is false.</summary>
         public bool CanRead { get; }
 
-        /// <summary>Whether the member can be written through this accessor.</summary>
+        /// <summary>Whether this type accessor can write this Member, including an init-only property after construction. False does not mean no other access can write the property.</summary>
         public bool CanWrite { get; }
 
         /// <summary>True when the member is a property.</summary>
