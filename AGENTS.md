@@ -24,3 +24,17 @@
 - Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`.
 - Tests disable xunit parallelization assembly-wide because `FallbackTests` toggles the global `EmitHelper.ForceReflectionFallback` flag.
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0 have them in-box.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues in Skymly/FastReflection. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical roles, labels equal to their names (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
