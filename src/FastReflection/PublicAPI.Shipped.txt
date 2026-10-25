@@ -1,0 +1,56 @@
+#nullable enable
+FastReflection.FastConstructorInvoker
+FastReflection.FastInvoker
+FastReflection.Member
+FastReflection.Member.CanRead.get -> bool
+FastReflection.Member.CanWrite.get -> bool
+FastReflection.Member.IsDefined(System.Type! attributeType, bool inherit = true) -> bool
+FastReflection.Member.IsField.get -> bool
+FastReflection.Member.IsProperty.get -> bool
+FastReflection.Member.MemberInfo.get -> System.Reflection.MemberInfo!
+FastReflection.Member.Name.get -> string!
+FastReflection.Member.Ordinal.get -> int
+FastReflection.Member.Type.get -> System.Type!
+FastReflection.ObjectAccessor
+FastReflection.ObjectAccessor.ObjectAccessor() -> void
+FastReflection.Ref<T>
+FastReflection.Ref<T>.Ref() -> void
+FastReflection.Ref<T>.Ref(T value) -> void
+FastReflection.Ref<T>.Value -> T
+FastReflection.ReflectionExtensions
+FastReflection.TypeAccessor
+FastReflection.TypeAccessor.TypeAccessor() -> void
+abstract FastReflection.ObjectAccessor.Target.get -> object?
+abstract FastReflection.ObjectAccessor.this[string! name].get -> object?
+abstract FastReflection.ObjectAccessor.this[string! name].set -> void
+abstract FastReflection.TypeAccessor.CreateNew() -> object!
+abstract FastReflection.TypeAccessor.CreateNewSupported.get -> bool
+abstract FastReflection.TypeAccessor.GetMembers() -> System.Collections.Generic.IReadOnlyList<FastReflection.Member!>!
+abstract FastReflection.TypeAccessor.GetValue(object? target, int ordinal) -> object?
+abstract FastReflection.TypeAccessor.SetValue(object? target, int ordinal, object? value) -> void
+abstract FastReflection.TypeAccessor.TryGetOrdinal(string! name, out int ordinal) -> bool
+abstract FastReflection.TypeAccessor.Type.get -> System.Type!
+abstract FastReflection.TypeAccessor.this[object? target, string! name].get -> object?
+abstract FastReflection.TypeAccessor.this[object? target, string! name].set -> void
+override FastReflection.Member.ToString() -> string!
+override FastReflection.ObjectAccessor.Equals(object? obj) -> bool
+override FastReflection.ObjectAccessor.GetHashCode() -> int
+override FastReflection.ObjectAccessor.ToString() -> string?
+static FastReflection.ObjectAccessor.Create(object! target, bool allowNonPublicAccessors = false) -> FastReflection.ObjectAccessor!
+static FastReflection.ReflectionExtensions.CreateFactory(this System.Reflection.ConstructorInfo! ctor) -> System.Func<object?>!
+static FastReflection.ReflectionExtensions.CreateFactory(this System.Type! type, bool nonPublic = false) -> System.Func<object?>!
+static FastReflection.ReflectionExtensions.CreateGetter(this System.Reflection.FieldInfo! field) -> System.Func<object?, object?>!
+static FastReflection.ReflectionExtensions.CreateGetter(this System.Reflection.PropertyInfo! property) -> System.Func<object?, object?>!
+static FastReflection.ReflectionExtensions.CreateGetter<TDeclaring, TValue>(this System.Reflection.FieldInfo! field) -> System.Func<TDeclaring, TValue>!
+static FastReflection.ReflectionExtensions.CreateGetter<TDeclaring, TValue>(this System.Reflection.PropertyInfo! property) -> System.Func<TDeclaring, TValue>!
+static FastReflection.ReflectionExtensions.CreateInvoker(this System.Reflection.ConstructorInfo! ctor) -> FastReflection.FastConstructorInvoker!
+static FastReflection.ReflectionExtensions.CreateInvoker(this System.Reflection.MethodInfo! method) -> FastReflection.FastInvoker!
+static FastReflection.ReflectionExtensions.CreateInvoker<TDelegate>(this System.Reflection.MethodInfo! method) -> TDelegate!
+static FastReflection.ReflectionExtensions.CreateSetter(this System.Reflection.FieldInfo! field) -> System.Action<object?, object?>!
+static FastReflection.ReflectionExtensions.CreateSetter(this System.Reflection.PropertyInfo! property) -> System.Action<object?, object?>!
+static FastReflection.ReflectionExtensions.CreateSetter<TDeclaring, TValue>(this System.Reflection.FieldInfo! field) -> System.Action<TDeclaring, TValue>!
+static FastReflection.ReflectionExtensions.CreateSetter<TDeclaring, TValue>(this System.Reflection.PropertyInfo! property) -> System.Action<TDeclaring, TValue>!
+static FastReflection.ReflectionExtensions.Unreflect<TDelegate>(this System.Reflection.MethodInfo! method) -> TDelegate!
+static FastReflection.TypeAccessor.Create(System.Type! type, bool allowNonPublicAccessors = false) -> FastReflection.TypeAccessor!
+virtual FastReflection.FastConstructorInvoker.Invoke(object?[]? args) -> object?
+virtual FastReflection.FastInvoker.Invoke(object? target, object?[]? args) -> object?

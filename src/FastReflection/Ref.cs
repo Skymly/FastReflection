@@ -13,6 +13,7 @@ namespace FastReflection
         public T Value;
 
         /// <summary>Creates a holder with an initial value.</summary>
+        /// <param name="value">The initial value.</param>
         public Ref(T value) => Value = value;
     }
 }

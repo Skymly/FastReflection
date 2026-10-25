@@ -1,0 +1,45 @@
+<Project>
+
+  <!-- MSBuild imports only the nearest Directory.Build.props; chain the repo-root one. -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <!-- Shipped-project quality gates (docs/specs/1.0-quality-gates.md).
+       Applies to every project under src/ — the core today, the satellites when #36/#37 land them.
+       Tests, benchmarks, smoke and build projects live outside src/ and keep warnings, not errors. -->
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Intra-package asset-compatibility checks only — no baseline exists at 1.0
+         (PackageValidationBaselineVersion is a post-1.0 follow-up). Strict mode makes
+         per-TFM surface differences (the net8.0 #if-gated span invokers) explicit:
+         intentional ones are recorded in CompatibilitySuppressions.xml with reasons. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <EnableStrictModeForCompatibleTfms>true</EnableStrictModeForCompatibleTfms>
+    <EnableStrictModeForCompatibleFrameworksInPackage>true</EnableStrictModeForCompatibleFrameworksInPackage>
+  </PropertyGroup>
+
+  <!-- NoWarn inventory — every suppression is explicit and commented:
+       - CS1591 is NOT suppressed: public members carry XML documentation, <exception> included (#8).
+       - IL2xxx/IL3xxx are NOT suppressed here: AOT/trim findings are suppressed at the call site
+         via UnconditionalSuppressMessage, pending the #9 annotation contract in #38.
+       - NETSDK1138: add Condition="'$(TargetFramework)' == 'net8.0'" suppression only once that
+         leg is past EOL — the EOL stance stays visible (#19 "drops only at a major").
+       Any further suppression needs an inline justification. -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- PublicAPI baselines: the analyzer's conditional-API mechanism is multiple file
+       instances (verified against 5.6.0 — no in-file #if support). The shared files carry
+       the full surface; PublicAPI/<tfm>/PublicAPI.*.txt carries per-TFM additions
+       (net8.0: the #if-gated span invokers). Unshipped drift fails the build. -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt')" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt')" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI\$(TargetFramework)\PublicAPI.Shipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI\$(TargetFramework)\PublicAPI.Shipped.txt')" />
+    <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI\$(TargetFramework)\PublicAPI.Unshipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI\$(TargetFramework)\PublicAPI.Unshipped.txt')" />
+  </ItemGroup>
+
+</Project>

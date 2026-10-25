@@ -7,13 +7,23 @@ namespace FastReflection
     public abstract class ObjectAccessor
     {
         /// <summary>Reads or writes the Member with this case-sensitive name on the bound object.</summary>
-        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor, or the Member cannot be read or written. An existing Member that cannot be written is not missing; both cases share this exception type.</exception>
+        /// <param name="name">The case-sensitive Member name.</param>
+        /// <value>The value to write.</value>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null.</exception>
+        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor.</exception>
+        /// <exception cref="InvalidOperationException">The Member exists but cannot be read (get) or written (set). An existing Member that cannot be written is not missing.</exception>
+        /// <exception cref="InvalidCastException">On set, the value cannot be converted to the Member type. A Member exception propagates unwrapped.</exception>
         public abstract object? this[string name] { get; set; }
 
         /// <summary>The wrapped object.</summary>
         public abstract object? Target { get; }
 
         /// <summary>Binds <paramref name="target"/> to the type accessor of its runtime type. <paramref name="allowNonPublicAccessors"/> selects the non-public type accessor.</summary>
+        /// <param name="target">The object to wrap.</param>
+        /// <param name="allowNonPublicAccessors">True for the non-public type accessor.</param>
+        /// <returns>The bound object accessor.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="target"/> is null.</exception>
+        /// <exception cref="ArgumentException">The target's runtime type is an open generic.</exception>
         public static ObjectAccessor Create(object target, bool allowNonPublicAccessors = false)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
