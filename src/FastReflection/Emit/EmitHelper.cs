@@ -11,6 +11,9 @@ namespace FastReflection.Emit
         internal const string DynamicCodeMessage =
             "FastReflection compiles delegates via DynamicMethod, which requires dynamic code generation and is not available under full AOT/IL trimming.";
 
+        /// <summary>The wrong-length message shared by the emitted checks and the reflection path.</summary>
+        internal const string ArgsLengthMessage = "args length does not match this call.";
+
         private static readonly bool s_dynamicCode = ProbeDynamicCode();
 
         /// <summary>Test hook: force the reflection fallback path (settable from the test assembly).</summary>
@@ -46,6 +49,18 @@ namespace FastReflection.Emit
         internal static DynamicMethod CreateDynamicMethod(string name, Type? returnType, Type[] parameterTypes, Type owner)
             => new(name, returnType, parameterTypes, owner, skipVisibility: true);
 
+        /// <summary>Emits <c>if (arg == null) throw new ArgumentNullException("target")</c> for an instance-access target.</summary>
+        internal static void EmitCheckTarget(ILGenerator il, int argIndex = 0)
+        {
+            var notNull = il.DefineLabel();
+            il.Emit(OpCodes.Ldarg, argIndex);
+            il.Emit(OpCodes.Brtrue_S, notNull);
+            il.Emit(OpCodes.Ldstr, "target");
+            il.Emit(OpCodes.Newobj, typeof(ArgumentNullException).GetConstructor(new[] { typeof(string) })!);
+            il.Emit(OpCodes.Throw);
+            il.MarkLabel(notNull);
+        }
+
         /// <summary>
         /// Loads argument <paramref name="argIndex"/> (declared <see cref="object"/>) onto the stack as
         /// <paramref name="declaringType"/>: <c>castclass</c> for reference types, <c>unbox</c>
@@ -60,14 +75,31 @@ namespace FastReflection.Emit
                 il.Emit(OpCodes.Castclass, declaringType);
         }
 
-        /// <summary>Converts the boxed value on the stack to <paramref name="type"/>.</summary>
+        /// <summary>
+        /// Converts the boxed value on the stack to <paramref name="type"/>.
+        /// Null converts to <see cref="InvalidCastException"/> on a non-nullable value type.
+        /// </summary>
         internal static void EmitConvertFromObject(ILGenerator il, Type type)
         {
             if (type.IsByRef) type = type.GetElementType()!;
             if (type.IsValueType || type.IsGenericParameter)
+            {
+                if (!type.IsGenericParameter && Nullable.GetUnderlyingType(type) == null)
+                {
+                    var notNull = il.DefineLabel();
+                    il.Emit(OpCodes.Dup);
+                    il.Emit(OpCodes.Brtrue_S, notNull);
+                    il.Emit(OpCodes.Ldstr, "Null cannot be converted to a non-nullable value type.");
+                    il.Emit(OpCodes.Newobj, typeof(InvalidCastException).GetConstructor(new[] { typeof(string) })!);
+                    il.Emit(OpCodes.Throw);
+                    il.MarkLabel(notNull);
+                }
                 il.Emit(OpCodes.Unbox_Any, type);
+            }
             else
+            {
                 il.Emit(OpCodes.Castclass, type);
+            }
         }
 
         /// <summary>
@@ -88,6 +120,13 @@ namespace FastReflection.Emit
         internal static bool IsDelegateBindFailure(Exception e)
             => e is ArgumentException or MethodAccessException or MemberAccessException or MissingMethodException or InvalidOperationException;
 
+        /// <summary>Returns <paramref name="emit"/>'s delegate, or <paramref name="fallback"/> when emit throws.</summary>
+        internal static T EmitOrFallback<T>(Func<T> emit, T fallback)
+        {
+            try { return emit(); }
+            catch { return fallback; }
+        }
+
         /// <summary>Emits <c>call</c> for statics/value-type methods, <c>callvirt</c> otherwise.</summary>
         internal static void EmitCall(ILGenerator il, MethodInfo method)
         {
@@ -107,28 +146,35 @@ namespace FastReflection.Emit
         }
 
         /// <summary>
-        /// Emits <c>if (args == null) throw new ArgumentNullException; if (args.Length &lt; required) throw new ArgumentException;</c>.
+        /// Emits <c>if (args == null) throw new ArgumentNullException; if (args.Length != required) throw new ArgumentException;</c>.
+        /// When <paramref name="requiredCount"/> is 0 a null array is allowed but extra arguments are not.
         /// </summary>
         internal static void EmitCheckArgs(ILGenerator il, int argsParamIndex, int requiredCount)
         {
-            if (requiredCount == 0) return;
-
-            var notNull = il.DefineLabel();
             var ok = il.DefineLabel();
 
-            il.Emit(OpCodes.Ldarg, argsParamIndex);
-            il.Emit(OpCodes.Brtrue_S, notNull);
-            il.Emit(OpCodes.Ldstr, "args");
-            il.Emit(OpCodes.Newobj, typeof(ArgumentNullException).GetConstructor(new[] { typeof(string) })!);
-            il.Emit(OpCodes.Throw);
-            il.MarkLabel(notNull);
+            if (requiredCount == 0)
+            {
+                il.Emit(OpCodes.Ldarg, argsParamIndex);
+                il.Emit(OpCodes.Brfalse_S, ok);
+            }
+            else
+            {
+                var notNull = il.DefineLabel();
+                il.Emit(OpCodes.Ldarg, argsParamIndex);
+                il.Emit(OpCodes.Brtrue_S, notNull);
+                il.Emit(OpCodes.Ldstr, "args");
+                il.Emit(OpCodes.Newobj, typeof(ArgumentNullException).GetConstructor(new[] { typeof(string) })!);
+                il.Emit(OpCodes.Throw);
+                il.MarkLabel(notNull);
+            }
 
             il.Emit(OpCodes.Ldarg, argsParamIndex);
             il.Emit(OpCodes.Ldlen);
             il.Emit(OpCodes.Conv_I4);
             EmitLdcI4(il, requiredCount);
-            il.Emit(OpCodes.Bge_S, ok);
-            il.Emit(OpCodes.Ldstr, "args does not contain enough elements for this call.");
+            il.Emit(OpCodes.Beq_S, ok);
+            il.Emit(OpCodes.Ldstr, ArgsLengthMessage);
             il.Emit(OpCodes.Newobj, typeof(ArgumentException).GetConstructor(new[] { typeof(string) })!);
             il.Emit(OpCodes.Throw);
             il.MarkLabel(ok);
@@ -168,17 +214,15 @@ namespace FastReflection.Emit
             il.Emit(OpCodes.Stind_Ref);
         }
 
-        /// <summary>Emits <c>if (args.Length &lt; required) throw new ArgumentException;</c>. A span is never null.</summary>
+        /// <summary>Emits <c>if (args.Length != required) throw new ArgumentException;</c>. A span is never null.</summary>
         internal static void EmitCheckSpan(ILGenerator il, int argsParamIndex, int requiredCount)
         {
-            if (requiredCount == 0) return;
-
             var ok = il.DefineLabel();
             il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
             il.Emit(OpCodes.Call, s_spanGetLength);
             EmitLdcI4(il, requiredCount);
-            il.Emit(OpCodes.Bge_S, ok);
-            il.Emit(OpCodes.Ldstr, "args does not contain enough elements for this call.");
+            il.Emit(OpCodes.Beq_S, ok);
+            il.Emit(OpCodes.Ldstr, ArgsLengthMessage);
             il.Emit(OpCodes.Newobj, typeof(ArgumentException).GetConstructor(new[] { typeof(string) })!);
             il.Emit(OpCodes.Throw);
             il.MarkLabel(ok);

@@ -28,7 +28,7 @@ namespace FastReflection.Tests
         {
             var accessor = TypeAccessor.Create(typeof(Sample));
             var s = new Sample();
-            Assert.Throws<MissingMemberException>(() => accessor[s, nameof(Sample.ReadOnlyProp)] = "x");
+            Assert.Throws<InvalidOperationException>(() => accessor[s, nameof(Sample.ReadOnlyProp)] = "x");
         }
 
         [Fact]

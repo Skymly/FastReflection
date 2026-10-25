@@ -245,6 +245,21 @@ namespace FastReflection.Tests
         }
 
         [Fact]
+        public void RefInvoker_NullTarget_Throws()
+        {
+            var parse = Method(nameof(Sample.TryParse)).CreateInvoker<Parse>();
+            Assert.Throws<ArgumentNullException>(() => parse(null!, "12", out _));
+        }
+
+        [Fact]
+        public void TypedInvoker_RefNullTarget_Throws()
+        {
+            var bump = Method(nameof(Sample.Bump)).CreateInvoker<BumpRef>();
+            Sample? s = null;
+            Assert.Throws<ArgumentNullException>(() => bump(ref s!));
+        }
+
+        [Fact]
         public void RefInvoker_InParams()
         {
             var sum = Method(nameof(Sample.SumIn)).CreateInvoker<SumRefs>();

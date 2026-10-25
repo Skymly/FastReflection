@@ -25,15 +25,10 @@ namespace FastReflection.Emit
             var get = property.GetGetMethod(true)
                 ?? throw new ArgumentException("Property has no get accessor.", nameof(property));
             if (!EmitHelper.DynamicCodeSupported)
-                return target => get.Invoke(target, null);
-            try
-            {
-                return EmitPropertyGetter(property, get);
-            }
-            catch
-            {
-                return target => get.Invoke(target, null);
-            }
+                return target => ReflectionFallback.Get(get, target);
+            return EmitHelper.EmitOrFallback(
+                () => EmitPropertyGetter(property, get),
+                (Func<object?, object?>)(target => ReflectionFallback.Get(get, target)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -45,7 +40,11 @@ namespace FastReflection.Emit
                 $"FastReflection_get_{dt.Name}_{property.Name}",
                 typeof(object), new[] { typeof(object) }, dt);
             var il = dm.GetILGenerator();
-            if (!get.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
+            if (!get.IsStatic)
+            {
+                EmitHelper.EmitCheckTarget(il);
+                EmitHelper.EmitLoadTarget(il, dt);
+            }
             EmitHelper.EmitCall(il, get);
             EmitLoadMemberValue(il, property.PropertyType);
             il.Emit(OpCodes.Ret);
@@ -66,7 +65,8 @@ namespace FastReflection.Emit
                 if (get == null || !property.PropertyType.IsByRef || IsReadOnlyRef(get))
                     throw new ArgumentException("Property has no set accessor.", nameof(property));
                 if (!EmitHelper.DynamicCodeSupported)
-                    throw new ArgumentException("Property has no set accessor.", nameof(property));
+                    throw new NotSupportedException(
+                        "Writing a ref-returning property with no setter requires dynamic code, which is unavailable.");
                 try
                 {
                     return EmitPropertySetterViaRef(property, get, property.PropertyType.GetElementType()!);
@@ -77,15 +77,10 @@ namespace FastReflection.Emit
                 }
             }
             if (!EmitHelper.DynamicCodeSupported)
-                return (target, value) => set.Invoke(target, new[] { value });
-            try
-            {
-                return EmitPropertySetter(property, set);
-            }
-            catch
-            {
-                return (target, value) => set.Invoke(target, new[] { value });
-            }
+                return (target, value) => ReflectionFallback.Set(set, target, value);
+            return EmitHelper.EmitOrFallback(
+                () => EmitPropertySetter(property, set),
+                (Action<object?, object?>)((target, value) => ReflectionFallback.Set(set, target, value)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -97,7 +92,11 @@ namespace FastReflection.Emit
                 $"FastReflection_set_{dt.Name}_{property.Name}",
                 null, new[] { typeof(object), typeof(object) }, dt);
             var il = dm.GetILGenerator();
-            if (!set.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
+            if (!set.IsStatic)
+            {
+                EmitHelper.EmitCheckTarget(il);
+                EmitHelper.EmitLoadTarget(il, dt);
+            }
             il.Emit(OpCodes.Ldarg_1);
             EmitHelper.EmitConvertFromObject(il, property.PropertyType);
             EmitHelper.EmitCall(il, set);
@@ -115,10 +114,17 @@ namespace FastReflection.Emit
                 $"FastReflection_setref_{dt.Name}_{property.Name}",
                 null, new[] { typeof(object), typeof(object) }, dt);
             var il = dm.GetILGenerator();
-            if (!get.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
-            EmitHelper.EmitCall(il, get);          // &T
+            if (!get.IsStatic)
+                EmitHelper.EmitCheckTarget(il);
+            // Convert the value before calling the getter: a conversion failure precedes the callee.
+            var converted = il.DeclareLocal(elementType);
             il.Emit(OpCodes.Ldarg_1);
-            EmitHelper.EmitConvertFromObject(il, elementType);  // T
+            EmitHelper.EmitConvertFromObject(il, elementType);
+            il.Emit(OpCodes.Stloc, converted);
+            if (!get.IsStatic)
+                EmitHelper.EmitLoadTarget(il, dt);
+            EmitHelper.EmitCall(il, get);          // &T
+            il.Emit(OpCodes.Ldloc, converted);
             il.Emit(OpCodes.Stobj, elementType);
             il.Emit(OpCodes.Ret);
             return (Action<object?, object?>)dm.CreateDelegate(typeof(Action<object?, object?>));
@@ -131,15 +137,10 @@ namespace FastReflection.Emit
             if (field == null) throw new ArgumentNullException(nameof(field));
             ThrowIfOpenGeneric(field);
             if (!EmitHelper.DynamicCodeSupported)
-                return target => field.GetValue(target);
-            try
-            {
-                return EmitFieldGetter(field);
-            }
-            catch
-            {
-                return target => field.GetValue(target);
-            }
+                return target => ReflectionFallback.Get(field, target);
+            return EmitHelper.EmitOrFallback(
+                () => EmitFieldGetter(field),
+                (Func<object?, object?>)(target => ReflectionFallback.Get(field, target)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -157,6 +158,7 @@ namespace FastReflection.Emit
             }
             else
             {
+                EmitHelper.EmitCheckTarget(il);
                 EmitHelper.EmitLoadTarget(il, dt);
                 il.Emit(OpCodes.Ldfld, field);
             }
@@ -172,15 +174,10 @@ namespace FastReflection.Emit
             if (field.IsLiteral || field.IsInitOnly)
                 throw new ArgumentException("Field is read-only.", nameof(field));
             if (!EmitHelper.DynamicCodeSupported)
-                return (target, value) => field.SetValue(target, value);
-            try
-            {
-                return EmitFieldSetter(field);
-            }
-            catch
-            {
-                return (target, value) => field.SetValue(target, value);
-            }
+                return (target, value) => ReflectionFallback.Set(field, target, value);
+            return EmitHelper.EmitOrFallback(
+                () => EmitFieldSetter(field),
+                (Action<object?, object?>)((target, value) => ReflectionFallback.Set(field, target, value)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -200,6 +197,7 @@ namespace FastReflection.Emit
             }
             else
             {
+                EmitHelper.EmitCheckTarget(il);
                 EmitHelper.EmitLoadTarget(il, dt);
                 il.Emit(OpCodes.Ldarg_1);
                 EmitHelper.EmitConvertFromObject(il, field.FieldType);
@@ -218,15 +216,10 @@ namespace FastReflection.Emit
             if (method.ContainsGenericParameters)
                 throw new ArgumentException("Open generic methods must be constructed via MakeGenericMethod first.", nameof(method));
             if (!EmitHelper.DynamicCodeSupported)
-                return (target, args) => method.Invoke(target, args);
-            try
-            {
-                return EmitInvoker(method);
-            }
-            catch
-            {
-                return (target, args) => method.Invoke(target, args);
-            }
+                return (target, args) => ReflectionFallback.Invoke(method, target, args);
+            return EmitHelper.EmitOrFallback(
+                () => EmitInvoker(method),
+                (FastInvoker)((target, args) => ReflectionFallback.Invoke(method, target, args)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -240,7 +233,11 @@ namespace FastReflection.Emit
                 typeof(object), new[] { typeof(object), typeof(object[]) }, dt);
             var il = dm.GetILGenerator();
             EmitHelper.EmitCheckArgs(il, 1, ps.Length);
-            if (!method.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
+            if (!method.IsStatic)
+            {
+                EmitHelper.EmitCheckTarget(il);
+                EmitHelper.EmitLoadTarget(il, dt);
+            }
             var byrefs = EmitParameters(il, ps, 1);
             EmitHelper.EmitCall(il, method);
             EmitWriteBack(il, byrefs, 1);
@@ -261,15 +258,10 @@ namespace FastReflection.Emit
             ThrowIfOpenGeneric(ctor);
             var ps = ctor.GetParameters();
             if (!EmitHelper.DynamicCodeSupported)
-                return args => ctor.Invoke(args);
-            try
-            {
-                return EmitInvoker(ctor, ps);
-            }
-            catch
-            {
-                return args => ctor.Invoke(args);
-            }
+                return args => ReflectionFallback.Invoke(ctor, args);
+            return EmitHelper.EmitOrFallback(
+                () => EmitInvoker(ctor, ps),
+                (FastConstructorInvoker)(args => ReflectionFallback.Invoke(ctor, args)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -298,15 +290,10 @@ namespace FastReflection.Emit
             if (ctor.GetParameters().Length != 0)
                 throw new ArgumentException("CreateFactory requires a parameterless constructor.", nameof(ctor));
             if (!EmitHelper.DynamicCodeSupported)
-                return () => ctor.Invoke(null);
-            try
-            {
-                return EmitFactory(ctor);
-            }
-            catch
-            {
-                return () => ctor.Invoke(null);
-            }
+                return () => ReflectionFallback.New(ctor);
+            return EmitHelper.EmitOrFallback(
+                () => EmitFactory(ctor),
+                (Func<object?>)(() => ReflectionFallback.New(ctor)));
         }
 
         /// <summary>Factory for a type's parameterless constructor (any visibility when <paramref name="nonPublic"/>); structs get an initobj factory.</summary>
@@ -330,7 +317,7 @@ namespace FastReflection.Emit
             if (type.IsValueType)
             {
                 if (!EmitHelper.DynamicCodeSupported)
-                    return () => Activator.CreateInstance(type);
+                    return () => ReflectionFallback.New(type);
                 try
                 {
                     var dm = EmitHelper.CreateDynamicMethod(
@@ -347,7 +334,7 @@ namespace FastReflection.Emit
                 }
                 catch
                 {
-                    return () => Activator.CreateInstance(type);
+                    return () => ReflectionFallback.New(type);
                 }
             }
 
@@ -377,8 +364,10 @@ namespace FastReflection.Emit
             if (method.ContainsGenericParameters)
                 throw new ArgumentException("Open generic methods must be constructed via MakeGenericMethod first.", nameof(method));
             if (!EmitHelper.DynamicCodeSupported)
-                return System.Reflection.MethodInvoker.Create(method).Invoke;
-            return EmitSpanMethod(method);
+                return (target, args) => ReflectionFallback.Invoke(method, target, args);
+            return EmitHelper.EmitOrFallback(
+                () => EmitSpanMethod(method),
+                (FastSpanInvoker)((target, args) => ReflectionFallback.Invoke(method, target, args)));
         }
 
         internal static FastSpanConstructorInvoker CreateSpanInvoker(ConstructorInfo ctor)
@@ -386,8 +375,10 @@ namespace FastReflection.Emit
             if (ctor == null) throw new ArgumentNullException(nameof(ctor));
             ThrowIfOpenGeneric(ctor);
             if (!EmitHelper.DynamicCodeSupported)
-                return System.Reflection.ConstructorInvoker.Create(ctor).Invoke;
-            return EmitSpanConstructor(ctor);
+                return args => ReflectionFallback.Invoke(ctor, args);
+            return EmitHelper.EmitOrFallback(
+                () => EmitSpanConstructor(ctor),
+                (FastSpanConstructorInvoker)(args => ReflectionFallback.Invoke(ctor, args)));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
@@ -401,7 +392,11 @@ namespace FastReflection.Emit
                 typeof(object), new[] { typeof(object), typeof(Span<object?>) }, dt);
             var il = dm.GetILGenerator();
             EmitHelper.EmitCheckSpan(il, 1, ps.Length);
-            if (!method.IsStatic) EmitHelper.EmitLoadTarget(il, dt);
+            if (!method.IsStatic)
+            {
+                EmitHelper.EmitCheckTarget(il);
+                EmitHelper.EmitLoadTarget(il, dt);
+            }
             var byrefs = EmitParameters(il, ps, 1, span: true);
             EmitHelper.EmitCall(il, method);
             EmitWriteBack(il, byrefs, 1, span: true);
@@ -513,16 +508,36 @@ namespace FastReflection.Emit
             if (!targetType.IsByRef)
             {
                 if (targetType.IsValueType)
+                {
                     il.Emit(OpCodes.Ldarga_S, (byte)0);
+                }
                 else
+                {
                     il.Emit(OpCodes.Ldarg_0);
+                    EmitCheckTypedTargetNotNull(il);
+                }
                 return;
             }
 
             il.Emit(OpCodes.Ldarg_0);
             var element = targetType.GetElementType()!;
             if (!element.IsValueType)
+            {
                 il.Emit(OpCodes.Ldind_Ref);
+                EmitCheckTypedTargetNotNull(il);
+            }
+        }
+
+        /// <summary>Emits <c>if (loadedTarget == null) throw new ArgumentNullException("target")</c> on the reference on the stack.</summary>
+        private static void EmitCheckTypedTargetNotNull(ILGenerator il)
+        {
+            var notNull = il.DefineLabel();
+            il.Emit(OpCodes.Dup);
+            il.Emit(OpCodes.Brtrue_S, notNull);
+            il.Emit(OpCodes.Ldstr, "target");
+            il.Emit(OpCodes.Newobj, typeof(ArgumentNullException).GetConstructor(new[] { typeof(string) })!);
+            il.Emit(OpCodes.Throw);
+            il.MarkLabel(notNull);
         }
 
         private static void EnsureTypedSignature(MethodInfo method, MethodInfo invoke)
