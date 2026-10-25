@@ -1,6 +1,6 @@
 # FastReflection
 
-Adapts a runtime-known property, field, method, or constructor into a reusable access, and names the instance properties and fields of a closed type. It does not include dynamic binding, nullability or XML-doc meaning, or compile-time generated access.
+Adapts a runtime-known property, field, method, or constructor into a reusable access, and names the instance properties and fields of a closed type. It does not include dynamic-object or DLR dispatch, user-defined or inferred conversions, member-path grammars or events by name, contextual metadata or nullability meaning (XML-doc reading ships in the `Skymly.FastReflection.XmlDocs` satellite), or compile-time generated access.
 
 ## Language
 

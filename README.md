@@ -2,7 +2,7 @@
 
 Turns a property, field, method, or constructor already known at runtime into a reusable access. When dynamic code is available the hot path is a compiled delegate; when it is not, an access that ordinary reflection can complete still completes, and one it cannot complete fails. A bind with no adaptation is not an access.
 
-A type accessor names the instance properties and fields of a closed type. This library does not include dynamic binding, nullability or XML-doc meaning, or compile-time generated access. Terms live in [CONTEXT.md](CONTEXT.md).
+A type accessor names the instance properties and fields of a closed type. This library does not include dynamic-object or DLR dispatch, user-defined or inferred conversions, member-path grammars or events by name, contextual metadata or nullability meaning (XML-doc reading ships in `Skymly.FastReflection.XmlDocs`), or compile-time generated access. Terms live in [CONTEXT.md](CONTEXT.md).
 
 **Target frameworks**: `net462`, `netstandard2.0`, `net8.0`
 
@@ -59,9 +59,11 @@ wrapped["Value"] = 42;
 
 ### Explicit non-goals
 
-- NRT/XML-docs semantic enrichment — use [Namotion.Reflection](https://github.com/RicoSuter/Namotion.Reflection)
-- `IDynamicMetaObjectProvider` / `dynamic` dispatch — that's [dynamitey](https://github.com/ekonbenefits/dynamitey) territory
-- Compile-time source-generated access
+- `IDynamicMetaObjectProvider` / `dynamic` / DLR dispatch — that's [dynamitey](https://github.com/ekonbenefits/dynamitey) territory
+- User-defined or inferred conversions — the bounded conversion set only
+- Member paths and events by name — post-1.0
+- NRT / contextual metadata — post-1.0 doc tooling; XML-doc reading ships in `Skymly.FastReflection.XmlDocs`
+- Compile-time source-generated access — post-1.0 companion generator
 
 ## Benchmarks (BenchmarkDotNet ShortRun, local machine)
 
