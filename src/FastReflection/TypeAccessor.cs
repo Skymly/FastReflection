@@ -165,7 +165,7 @@ namespace FastReflection
                             Getter = TryCreateGetter(prop, get),
                             Setter = TryCreateSetter(prop, set)
                         },
-                        Key = (OrdinalAttribute?)Attribute.GetCustomAttribute(prop, typeof(OrdinalAttribute), inherit: true)
+                        Key = ReadOrdinalKey(prop)
                     });
                 }
 
@@ -185,7 +185,7 @@ namespace FastReflection
                             Getter = TryCreateGetter(field),
                             Setter = writable ? TryCreateSetter(field) : null
                         },
-                        Key = (OrdinalAttribute?)Attribute.GetCustomAttribute(field, typeof(OrdinalAttribute), inherit: true)
+                        Key = ReadOrdinalKey(field)
                     });
                 }
             }
@@ -196,13 +196,13 @@ namespace FastReflection
 
             // Stable sort: attributed Members first, ascending; LINQ OrderBy keeps ties in enumeration order.
             var ordinal = 0;
-            foreach (var record in pending
+            foreach (var candidate in pending
                 .OrderBy(r => r.Key == null ? 1 : 0)
                 .ThenBy(r => r.Key?.Value ?? 0))
             {
-                _entries[ordinal] = record.Entry;
-                _members[ordinal] = new Member(record.Info, record.MemberType, ordinal, record.CanRead, record.CanWrite);
-                _map[record.Info.Name] = ordinal;
+                _entries[ordinal] = candidate.Entry;
+                _members[ordinal] = new Member(candidate.Info, candidate.MemberType, ordinal, candidate.CanRead, candidate.CanWrite);
+                _map[candidate.Info.Name] = ordinal;
                 ordinal++;
             }
 
@@ -252,6 +252,9 @@ namespace FastReflection
             => _map.TryGetValue(name, out var ordinal)
                 ? ordinal
                 : throw new MissingMemberException(_type.FullName, name);
+
+        private static OrdinalAttribute? ReadOrdinalKey(MemberInfo member)
+            => (OrdinalAttribute?)Attribute.GetCustomAttribute(member, typeof(OrdinalAttribute), inherit: true);
 
         [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
         private static Type[] CollectMemberTypes(Type type)
