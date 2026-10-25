@@ -14,6 +14,8 @@ namespace FastReflection
     /// </summary>
     public abstract class TypeAccessor
     {
+        internal TypeAccessor() { }
+
         private readonly struct CacheKey : IEquatable<CacheKey>
         {
             internal readonly Type Type;
