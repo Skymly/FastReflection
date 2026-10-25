@@ -211,7 +211,7 @@ namespace FastReflection
         /// An access over a method that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
         /// A span of references cannot be <c>stackalloc</c>'d. Value-type arguments and the return value are still boxed.
         /// A <see langword="ref"/> return is the current value, then boxed.
-        /// Falls back to <see cref="System.Reflection.MethodInvoker"/> when dynamic code is unavailable.
+        /// Falls back to plain reflection when dynamic code is unavailable.
         /// </summary>
         /// <param name="method">The method to access. An open generic method must be constructed first.</param>
         /// <returns>The span invoker access.</returns>
@@ -223,7 +223,7 @@ namespace FastReflection
 
         /// <summary>
         /// An access over a constructor that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
-        /// Falls back to <see cref="System.Reflection.ConstructorInvoker"/> when dynamic code is unavailable.
+        /// Falls back to plain reflection when dynamic code is unavailable.
         /// </summary>
         /// <param name="ctor">The constructor to access.</param>
         /// <returns>The span invoker access.</returns>

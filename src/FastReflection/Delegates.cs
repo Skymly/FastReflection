@@ -30,7 +30,7 @@ namespace FastReflection
     /// An access over a method that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
     /// A span of references cannot be <c>stackalloc</c>'d.
     /// Value-type arguments are still boxed. A <see langword="ref"/> return is the current value, then boxed.
-    /// Falls back to <see cref="System.Reflection.MethodInvoker"/> when dynamic code is unavailable.
+    /// Falls back to plain reflection when dynamic code is unavailable.
     /// </summary>
     /// <param name="target">The object to call; ignored on a static method.</param>
     /// <param name="args">The argument slots, and the by-ref write-backs. A span is never null.</param>
@@ -42,7 +42,7 @@ namespace FastReflection
 
     /// <summary>
     /// An access over a constructor that uses the caller's <see cref="Span{T}"/> of <see cref="object"/>.
-    /// Falls back to <see cref="System.Reflection.ConstructorInvoker"/> when dynamic code is unavailable.
+    /// Falls back to plain reflection when dynamic code is unavailable.
     /// </summary>
     /// <param name="args">The argument slots, and the by-ref write-backs. A span is never null.</param>
     /// <returns>The new instance, boxed for a value type.</returns>
