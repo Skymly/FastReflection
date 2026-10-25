@@ -1,3 +1,8 @@
 #nullable enable
 *REMOVED*FastReflection.ObjectAccessor.ObjectAccessor() -> void
 *REMOVED*FastReflection.TypeAccessor.TypeAccessor() -> void
+FastReflection.Member.GetAttribute(System.Type! attributeType, bool inherit = true) -> System.Attribute?
+FastReflection.Member.GetAttribute<T>(bool inherit = true) -> T?
+FastReflection.OrdinalAttribute
+FastReflection.OrdinalAttribute.OrdinalAttribute(int value) -> void
+FastReflection.OrdinalAttribute.Value.get -> int
