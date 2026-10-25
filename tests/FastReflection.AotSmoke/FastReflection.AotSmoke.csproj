@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net10.0 joins this list with the package-topology ticket (#34). -->
+    <TargetFrameworks>net8.0</TargetFrameworks>
+    <!-- Published for linux-x64 and executed by the Nuke AotSmoke target. -->
+    <PublishAot>true</PublishAot>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
+  </ItemGroup>
+
+</Project>

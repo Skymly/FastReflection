@@ -6,6 +6,7 @@
     <Project Path="src/FastReflection/FastReflection.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FastReflection.AotSmoke/FastReflection.AotSmoke.csproj" />
     <Project Path="tests/FastReflection.Tests/FastReflection.Tests.csproj" />
   </Folder>
 </Solution>

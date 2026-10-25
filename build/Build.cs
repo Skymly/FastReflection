@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
@@ -34,6 +35,7 @@ class Build : NukeBuild
     AbsolutePath SolutionFile => RootDirectory / "FastReflection.slnx";
     AbsolutePath LibraryProject => RootDirectory / "src" / "FastReflection" / "FastReflection.csproj";
     AbsolutePath TestProject => RootDirectory / "tests" / "FastReflection.Tests" / "FastReflection.Tests.csproj";
+    AbsolutePath SmokeProject => RootDirectory / "tests" / "FastReflection.AotSmoke" / "FastReflection.AotSmoke.csproj";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
 
     Target Clean => _ => _
@@ -61,13 +63,38 @@ class Build : NukeBuild
     // .NET Framework test legs (net472, net48, ...) only run on Windows; modern legs (net6.0+) run everywhere
     static bool IsNetFrameworkTfm(string tfm) => tfm.StartsWith("net") && tfm[3..].All(char.IsDigit);
 
-    Target Test => _ => _
+    static IEnumerable<string> TargetFrameworksOf(AbsolutePath project)
+        => XDocument.Load(project)
+            .Descendants("TargetFrameworks").Single().Value
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    // linux-x64 PublishAot smoke — the only RID at 1.0 — runs on an x64 Linux host only.
+    Target AotSmoke => _ => _
         .DependsOn(Compile)
+        .OnlyWhenStatic(() => OperatingSystem.IsLinux() && RuntimeInformation.OSArchitecture == Architecture.X64)
         .Executes(() =>
         {
-            var frameworks = XDocument.Load(TestProject)
-                .Descendants("TargetFrameworks").Single().Value
-                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            foreach (var framework in TargetFrameworksOf(SmokeProject))
+            {
+                var publishDir = ArtifactsDirectory / "aotsmoke" / framework;
+                DotNetPublish(s => s
+                    .SetProject(SmokeProject)
+                    .SetConfiguration(Configuration)
+                    .SetFramework(framework)
+                    .SetRuntime("linux-x64")
+                    .SetOutput(publishDir));
+
+                ProcessTasks.StartProcess(publishDir / SmokeProject.NameWithoutExtension, workingDirectory: publishDir)
+                    .AssertZeroExitCode();
+            }
+        });
+
+    Target Test => _ => _
+        .DependsOn(Compile)
+        .DependsOn(AotSmoke)
+        .Executes(() =>
+        {
+            var frameworks = TargetFrameworksOf(TestProject)
                 .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm));
 
             DotNetTest(s => s
