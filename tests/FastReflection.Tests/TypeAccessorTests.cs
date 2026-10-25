@@ -155,10 +155,28 @@ namespace FastReflection.Tests
         }
 
         [Fact]
-        public void ObjectAccessor_EqualsDelegatesToTarget()
+        public void ObjectAccessor_EqualsSymmetricAcrossAccessorsOnly()
         {
             var s = new Sample();
-            Assert.True(ObjectAccessor.Create(s).Equals(s));
+            var wrapped = ObjectAccessor.Create(s);
+            var wrappedAgain = ObjectAccessor.Create(s);
+
+            Assert.True(wrapped.Equals(wrappedAgain));
+            Assert.True(wrappedAgain.Equals(wrapped));
+
+            Assert.False(wrapped.Equals(s));
+            Assert.False(s.Equals(wrapped));
+            Assert.False(wrapped.Equals(null));
+
+            Assert.True(
+                ObjectAccessor.Create(new SampleStruct(1, 2))
+                    .Equals(ObjectAccessor.Create(new SampleStruct(1, 2))));
+            Assert.False(
+                ObjectAccessor.Create(new SampleStruct(1, 2))
+                    .Equals(ObjectAccessor.Create(new SampleStruct(3, 4))));
+
+            Assert.Equal(s.GetHashCode(), wrapped.GetHashCode());
+            Assert.Equal(s.ToString(), wrapped.ToString());
         }
     }
 }

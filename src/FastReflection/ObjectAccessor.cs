@@ -6,6 +6,8 @@ namespace FastReflection
     /// </summary>
     public abstract class ObjectAccessor
     {
+        internal ObjectAccessor() { }
+
         /// <summary>Reads or writes the Member with this case-sensitive name on the bound object.</summary>
         /// <param name="name">The case-sensitive Member name.</param>
         /// <value>The value to write.</value>
@@ -33,7 +35,7 @@ namespace FastReflection
 
         /// <inheritdoc />
         public override bool Equals(object? obj)
-            => obj is ObjectAccessor other ? Equals(Target, other.Target) : Equals(Target, obj);
+            => obj is ObjectAccessor other && Equals(Target, other.Target);
 
         /// <inheritdoc />
         public override int GetHashCode() => Target?.GetHashCode() ?? 0;

@@ -12,14 +12,12 @@ FastReflection.Member.Name.get -> string!
 FastReflection.Member.Ordinal.get -> int
 FastReflection.Member.Type.get -> System.Type!
 FastReflection.ObjectAccessor
-FastReflection.ObjectAccessor.ObjectAccessor() -> void
 FastReflection.Ref<T>
 FastReflection.Ref<T>.Ref() -> void
 FastReflection.Ref<T>.Ref(T value) -> void
 FastReflection.Ref<T>.Value -> T
 FastReflection.ReflectionExtensions
 FastReflection.TypeAccessor
-FastReflection.TypeAccessor.TypeAccessor() -> void
 abstract FastReflection.ObjectAccessor.Target.get -> object?
 abstract FastReflection.ObjectAccessor.this[string! name].get -> object?
 abstract FastReflection.ObjectAccessor.this[string! name].set -> void
