@@ -96,7 +96,7 @@ namespace FastReflection
         public abstract bool TryGetOrdinal(string name, out int ordinal);
 
         /// <summary>The Members of this type accessor: instance properties and fields. Not methods, events, indexers, constants, or static properties and fields.</summary>
-        /// <returns>The Members in ordinal order.</returns>
+        /// <returns>The Members in ordinal order: Members carrying <see cref="OrdinalAttribute"/> come first, ascending by its value; Members without it follow; equal values keep enumeration order.</returns>
         public abstract IReadOnlyList<Member> GetMembers();
 
         /// <summary>Whether <see cref="CreateNew"/> can produce an instance. Instance creation is not a Member.</summary>
@@ -117,6 +117,16 @@ namespace FastReflection
             internal Action<object?, object?>? Setter;
         }
 
+        private struct PendingMember
+        {
+            internal MemberInfo Info;
+            internal Type MemberType;
+            internal bool CanRead;
+            internal bool CanWrite;
+            internal Entry Entry;
+            internal OrdinalAttribute? Key;
+        }
+
         private readonly Type _type;
         private readonly Dictionary<string, int> _map;
         private readonly Entry[] _entries;
@@ -131,9 +141,8 @@ namespace FastReflection
             var flags = BindingFlags.Instance | BindingFlags.Public;
             if (allowNonPublicAccessors) flags |= BindingFlags.NonPublic;
 
-            _map = new Dictionary<string, int>(StringComparer.Ordinal);
-            var entries = new List<Entry>();
-            var members = new List<Member>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var pending = new List<PendingMember>();
 
             foreach (var t in CollectMemberTypes(type))
             {
@@ -143,36 +152,60 @@ namespace FastReflection
                     var get = prop.GetGetMethod(allowNonPublicAccessors);
                     var set = prop.GetSetMethod(allowNonPublicAccessors);
                     if (get == null && set == null) continue;
-                    if (_map.ContainsKey(prop.Name)) continue; // inherited-interface duplicates
+                    if (!seen.Add(prop.Name)) continue; // inherited-interface duplicates
 
-                    var ordinal = members.Count;
-                    entries.Add(new Entry
+                    pending.Add(new PendingMember
                     {
-                        Getter = TryCreateGetter(prop, get),
-                        Setter = TryCreateSetter(prop, set)
+                        Info = prop,
+                        MemberType = prop.PropertyType,
+                        CanRead = get != null,
+                        CanWrite = set != null,
+                        Entry = new Entry
+                        {
+                            Getter = TryCreateGetter(prop, get),
+                            Setter = TryCreateSetter(prop, set)
+                        },
+                        Key = ReadOrdinalKey(prop)
                     });
-                    members.Add(new Member(prop, prop.PropertyType, ordinal, get != null, set != null));
-                    _map[prop.Name] = ordinal;
                 }
 
                 foreach (var field in t.GetFields(flags))
                 {
-                    if (field.IsLiteral || _map.ContainsKey(field.Name)) continue;
+                    if (field.IsLiteral || !seen.Add(field.Name)) continue;
 
-                    var ordinal = members.Count;
                     var writable = !field.IsInitOnly;
-                    entries.Add(new Entry
+                    pending.Add(new PendingMember
                     {
-                        Getter = TryCreateGetter(field),
-                        Setter = writable ? TryCreateSetter(field) : null
+                        Info = field,
+                        MemberType = field.FieldType,
+                        CanRead = true,
+                        CanWrite = writable,
+                        Entry = new Entry
+                        {
+                            Getter = TryCreateGetter(field),
+                            Setter = writable ? TryCreateSetter(field) : null
+                        },
+                        Key = ReadOrdinalKey(field)
                     });
-                    members.Add(new Member(field, field.FieldType, ordinal, true, writable));
-                    _map[field.Name] = ordinal;
                 }
             }
 
-            _entries = entries.ToArray();
-            _members = members.ToArray();
+            _map = new Dictionary<string, int>(StringComparer.Ordinal);
+            _entries = new Entry[pending.Count];
+            _members = new Member[pending.Count];
+
+            // Stable sort: attributed Members first, ascending; LINQ OrderBy keeps ties in enumeration order.
+            var ordinal = 0;
+            foreach (var candidate in pending
+                .OrderBy(r => r.Key == null ? 1 : 0)
+                .ThenBy(r => r.Key?.Value ?? 0))
+            {
+                _entries[ordinal] = candidate.Entry;
+                _members[ordinal] = new Member(candidate.Info, candidate.MemberType, ordinal, candidate.CanRead, candidate.CanWrite);
+                _map[candidate.Info.Name] = ordinal;
+                ordinal++;
+            }
+
             _factory = TryCreateFactory(type, allowNonPublicAccessors);
         }
 
@@ -219,6 +252,9 @@ namespace FastReflection
             => _map.TryGetValue(name, out var ordinal)
                 ? ordinal
                 : throw new MissingMemberException(_type.FullName, name);
+
+        private static OrdinalAttribute? ReadOrdinalKey(MemberInfo member)
+            => (OrdinalAttribute?)Attribute.GetCustomAttribute(member, typeof(OrdinalAttribute), inherit: true);
 
         [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
         private static Type[] CollectMemberTypes(Type type)

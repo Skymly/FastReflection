@@ -102,4 +102,57 @@ namespace FastReflection.Tests
     // so each contract leg builds its accessor over its own marker subclass.
     public class EmitLegSample : Sample { }
     public class ReflectionLegSample : Sample { }
+
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
+    public sealed class MarkerAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field, AllowMultiple = true)]
+    public sealed class TagAttribute : Attribute
+    {
+        public TagAttribute(string name) => Name = name;
+        public string Name { get; }
+    }
+
+    public class AttributedBase
+    {
+        [Marker]
+        public virtual int Overridden { get; set; }
+    }
+
+    public class AttributedSample : AttributedBase
+    {
+        public override int Overridden { get; set; }
+        [Tag("p")] public int TaggedProp { get; set; }
+        [Tag("f")] public int TaggedField;
+        [Tag("a"), Tag("b")] public int TwiceTagged { get; set; }
+        public int Plain { get; set; }
+    }
+
+    // Unique initial values so ordinal reads can be checked against the sorted member.
+    public class OrderedSample
+    {
+        public int FreeA { get; set; } = 100;
+        [Ordinal(10)] public int Ten { get; set; } = 110;
+        [Ordinal(1)] public int TieA { get; set; } = 101;
+        public int FreeB { get; set; } = 102;
+        [Ordinal(1)] public int TieB { get; set; } = 103;
+        [Ordinal(-5)] public int MinusFive = 104;
+        [Ordinal(1)] public int TieC = 105;
+        public int FreeC = 106;
+    }
+
+    // Same cache rule as the *LegSample pair above: each ordering leg needs its own type.
+    public class EmitLegOrdered : OrderedSample { }
+    public class ReflectionLegOrdered : OrderedSample { }
+
+    public class OrderedOverrideBase
+    {
+        [Ordinal(1)] public virtual int Late { get; set; }
+    }
+
+    public class OrderedOverrideDerived : OrderedOverrideBase
+    {
+        public int Early { get; set; }
+        public override int Late { get; set; }
+    }
 }
