@@ -187,7 +187,8 @@ namespace FastReflection
             if ((uint)ordinal >= (uint)_entries.Length)
                 throw new ArgumentOutOfRangeException(nameof(ordinal));
             var getter = _entries[ordinal].Getter
-                ?? throw new MissingMemberException(_type.FullName, _members[ordinal].Name);
+                ?? throw new InvalidOperationException(
+                    $"Member '{_members[ordinal].Name}' of '{_type}' cannot be read by this type accessor.");
             return getter(target);
         }
 
@@ -196,7 +197,8 @@ namespace FastReflection
             if ((uint)ordinal >= (uint)_entries.Length)
                 throw new ArgumentOutOfRangeException(nameof(ordinal));
             var setter = _entries[ordinal].Setter
-                ?? throw new MissingMemberException(_type.FullName, _members[ordinal].Name);
+                ?? throw new InvalidOperationException(
+                    $"Member '{_members[ordinal].Name}' of '{_type}' cannot be written by this type accessor.");
             setter(target, value);
         }
 
@@ -236,31 +238,35 @@ namespace FastReflection
         private static Func<object?, object?>? TryCreateGetter(PropertyInfo prop, MethodInfo? get)
         {
             if (get == null) return null;
-            if (!EmitHelper.DynamicCodeSupported) return target => get.Invoke(target, null);
-            try { return AccessorEmitter.EmitPropertyGetter(prop, get); }
-            catch { return target => get.Invoke(target, null); }
+            if (!EmitHelper.DynamicCodeSupported) return target => ReflectionFallback.Get(get, target);
+            return EmitHelper.EmitOrFallback(
+                () => AccessorEmitter.EmitPropertyGetter(prop, get),
+                (Func<object?, object?>)(target => ReflectionFallback.Get(get, target)));
         }
 
         private static Action<object?, object?>? TryCreateSetter(PropertyInfo prop, MethodInfo? set)
         {
             if (set == null) return null;
-            if (!EmitHelper.DynamicCodeSupported) return (target, value) => set.Invoke(target, new[] { value });
-            try { return AccessorEmitter.EmitPropertySetter(prop, set); }
-            catch { return (target, value) => set.Invoke(target, new[] { value }); }
+            if (!EmitHelper.DynamicCodeSupported) return (target, value) => ReflectionFallback.Set(set, target, value);
+            return EmitHelper.EmitOrFallback(
+                () => AccessorEmitter.EmitPropertySetter(prop, set),
+                (Action<object?, object?>)((target, value) => ReflectionFallback.Set(set, target, value)));
         }
 
         private static Func<object?, object?>? TryCreateGetter(FieldInfo field)
         {
-            if (!EmitHelper.DynamicCodeSupported) return field.GetValue;
-            try { return AccessorEmitter.EmitFieldGetter(field); }
-            catch { return field.GetValue; }
+            if (!EmitHelper.DynamicCodeSupported) return target => ReflectionFallback.Get(field, target);
+            return EmitHelper.EmitOrFallback(
+                () => AccessorEmitter.EmitFieldGetter(field),
+                (Func<object?, object?>)(target => ReflectionFallback.Get(field, target)));
         }
 
         private static Action<object?, object?>? TryCreateSetter(FieldInfo field)
         {
-            if (!EmitHelper.DynamicCodeSupported) return field.SetValue;
-            try { return AccessorEmitter.EmitFieldSetter(field); }
-            catch { return field.SetValue; }
+            if (!EmitHelper.DynamicCodeSupported) return (target, value) => ReflectionFallback.Set(field, target, value);
+            return EmitHelper.EmitOrFallback(
+                () => AccessorEmitter.EmitFieldSetter(field),
+                (Action<object?, object?>)((target, value) => ReflectionFallback.Set(field, target, value)));
         }
     }
 }

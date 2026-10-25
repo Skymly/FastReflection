@@ -26,6 +26,12 @@ namespace FastReflection.Tests
         private int PrivateProp { get; set; }
         public int PublicField = 5;
         public readonly int ReadOnlyField = 9;
+        public long LongProp { get; set; }
+        public long LongField;
+        public int? NullableProp { get; set; }
+        public DayOfWeek DayProp { get; set; }
+        public int WriteOnlyProp { set { } }
+        public int SetterThrows { get => 0; set => throw new InvalidOperationException("boom"); }
         private string _privateField = "pf";
         public const int ConstField = 3;
         public static int StaticProp { get; set; }
@@ -47,6 +53,9 @@ namespace FastReflection.Tests
             v = -1;
             return false;
         }
+        public long Widen(long x) => x;
+        public int Throwing(int x) => throw new InvalidOperationException("boom");
+        public void SetThenThrow(ref int x) { x = 99; throw new InvalidOperationException("boom"); }
         public void Swap(ref int a, ref int b) { var t = a; a = b; b = t; }
         public static void StaticSwap(ref int a, ref int b) { var t = a; a = b; b = t; }
         private bool TrySecret(out int v) { v = 7; return true; }
@@ -82,4 +91,15 @@ namespace FastReflection.Tests
         private NoPublicCtor() { }
         public NoPublicCtor(int x) { }
     }
+
+    public class ThrowingCtor
+    {
+        public ThrowingCtor() => throw new InvalidOperationException("ctor boom");
+        public ThrowingCtor(int x) => throw new InvalidOperationException("ctor boom");
+    }
+
+    // TypeAccessor caches per (type, visibility) and never revisits the fallback flag,
+    // so each contract leg builds its accessor over its own marker subclass.
+    public class EmitLegSample : Sample { }
+    public class ReflectionLegSample : Sample { }
 }
