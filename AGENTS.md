@@ -5,6 +5,7 @@
 - Build: `dotnet build FastReflection.slnx` (slnx format; `global.json` pins the 10.0.x SDK band, `rollForward: latestFeature`)
 - Test (all legs): `dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj`
 - Test single leg: append `-f net8.0` or `-f net472` (net472 leg consumes the `net462` library build)
+- Coverage: the Nuke `Test`/`Coverage` targets (`./build.cmd Test Coverage`) collect cobertura on the newest modern leg into `artifacts/coverage/` and enforce ≥90% line coverage per shipped assembly (`--coverage-threshold` to override); collector config in `tests/FastReflection.Tests/coverage.runsettings`
 - Benchmarks: `dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -- --job short`
 
 ## Structure
@@ -25,6 +26,7 @@
 - Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`. See `docs/adr/0001-boxed-value-writes-update-the-box.md`.
 - Tests disable xunit parallelization assembly-wide because `FallbackTests` toggles the global `EmitHelper.ForceReflectionFallback` flag.
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0 have them in-box.
+- `coverlet.collector` silently ignores `Threshold*` runsettings settings (thresholds only work in coverlet.msbuild); the 90% per-assembly gate is `CheckCoverageThreshold` in `build/Build.cs` evaluating the cobertura report.
 - `ci.yml` is Nuke-generated, never hand-edited; regenerate via `./build.cmd --generate-configuration GitHubActions_ci --host GitHubActions`. Nuke runs `./build.cmd` on every runner incl. ubuntu — `build.cmd` line 1 is a POSIX branch that `exec`s `build.sh`; both `build.cmd` and `build.sh` must stay `100755` in git.
 - The `Test` target reads the test csproj `TargetFrameworks` and runs one `dotnet test -f <tfm>` per leg; `net<digits>` (.NET Framework) legs run only on Windows. New modern TFMs (e.g. net10.0) light up on both runners automatically.
 

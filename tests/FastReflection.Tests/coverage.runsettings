@@ -1,0 +1,18 @@
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <!-- Coverage collection for the quality gate (docs/specs/1.0-quality-gates.md): cobertura
+           on the newest modern leg. coverlet.collector ignores Threshold settings, so the 90%
+           per-assembly line gate is enforced by the Test target in build/Build.cs. -->
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- Shipped assemblies only; the FastReflection* pattern picks up the satellite
+               assemblies automatically when #20's package topology lands. -->
+          <Include>[FastReflection*]*</Include>
+          <Exclude>[FastReflection.Tests]*</Exclude>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

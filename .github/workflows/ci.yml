@@ -37,10 +37,16 @@ jobs:
             .nuke/temp
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
-      - name: 'Run: Test'
-        run: ./build.cmd Test
+      - name: 'Run: Test, Coverage'
+        run: ./build.cmd Test Coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Publish: coverage'
+        uses: actions/upload-artifact@v5
+        if: runner.os == 'Windows' && !cancelled()
+        with:
+          name: coverage
+          path: artifacts/coverage
   ubuntu-latest:
     name: ubuntu-latest
     runs-on: ubuntu-latest
@@ -53,7 +59,13 @@ jobs:
             .nuke/temp
             ~/.nuget/packages
           key: ${{ runner.os }}-${{ hashFiles('**/global.json', '**/*.csproj', '**/Directory.Packages.props') }}
-      - name: 'Run: Test'
-        run: ./build.cmd Test
+      - name: 'Run: Test, Coverage'
+        run: ./build.cmd Test Coverage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Publish: coverage'
+        uses: actions/upload-artifact@v5
+        if: runner.os == 'Windows' && !cancelled()
+        with:
+          name: coverage
+          path: artifacts/coverage
