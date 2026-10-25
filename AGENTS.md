@@ -2,7 +2,7 @@
 
 ## Commands
 
-- Build: `dotnet build FastReflection.slnx` (slnx format, requires .NET 9+ SDK)
+- Build: `dotnet build FastReflection.slnx` (slnx format; `global.json` pins the 10.0.x SDK band, `rollForward: latestFeature`)
 - Test (all legs): `dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj`
 - Test single leg: append `-f net8.0` or `-f net472` (net472 leg consumes the `net462` library build)
 - Benchmarks: `dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -- --job short`

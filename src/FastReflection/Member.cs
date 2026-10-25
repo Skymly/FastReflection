@@ -40,6 +40,10 @@ namespace FastReflection
         public bool IsField => MemberInfo is FieldInfo;
 
         /// <summary>Whether the member carries an attribute of <paramref name="attributeType"/>.</summary>
+        /// <param name="attributeType">The attribute type to look for.</param>
+        /// <param name="inherit">True to search the inheritance chain.</param>
+        /// <returns>True when the attribute is present.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="attributeType"/> is null.</exception>
         public bool IsDefined(Type attributeType, bool inherit = true)
             => MemberInfo.IsDefined(attributeType, inherit);
 

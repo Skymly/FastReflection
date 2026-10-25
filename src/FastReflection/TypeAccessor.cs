@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using FastReflection.Emit;
 
@@ -36,6 +37,11 @@ namespace FastReflection
         /// <paramref name="allowNonPublicAccessors"/> selects the non-public type accessor; otherwise the public one.
         /// An open generic type has no type accessor.
         /// </summary>
+        /// <param name="type">The closed type to access.</param>
+        /// <param name="allowNonPublicAccessors">True for the non-public type accessor.</param>
+        /// <returns>The cached type accessor.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="type"/> is null.</exception>
+        /// <exception cref="ArgumentException"><paramref name="type"/> is an open generic.</exception>
         public static TypeAccessor Create(Type type, bool allowNonPublicAccessors = false)
         {
             if (type == null) throw new ArgumentNullException(nameof(type));
@@ -50,25 +56,54 @@ namespace FastReflection
         public abstract Type Type { get; }
 
         /// <summary>Reads or writes the Member with this case-sensitive name on a compatible target.</summary>
-        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor, or the Member cannot be read or written. An existing Member that cannot be written is not missing; both cases share this exception type.</exception>
+        /// <param name="target">The object to read or write; must be non-null with a compatible runtime type.</param>
+        /// <param name="name">The case-sensitive Member name.</param>
+        /// <value>The value to write.</value>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null — or <paramref name="target"/> is null while the Member is an instance member.</exception>
+        /// <exception cref="MissingMemberException">The name is not a Member of this type accessor.</exception>
+        /// <exception cref="InvalidOperationException">The Member exists but cannot be read (get) or written (set). An existing Member that cannot be written is not missing.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type is not this type, a subtype, or an implementation of it — or, on set, the value cannot be converted to the Member type.</exception>
+        /// <remarks>A Member exception propagates unwrapped.</remarks>
         public abstract object? this[object? target, string name] { get; set; }
 
         /// <summary>Reads the Member at <paramref name="ordinal"/> in this type accessor. An ordinal is not a name and not a durable identity.</summary>
+        /// <param name="target">The object to read; must be non-null with a compatible runtime type.</param>
+        /// <param name="ordinal">The Member's index in this type accessor.</param>
+        /// <returns>The Member value.</returns>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="ordinal"/> is outside this type accessor.</exception>
+        /// <exception cref="InvalidOperationException">The Member cannot be read.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="target"/> is null while the Member is an instance member.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match. A Member exception propagates unwrapped.</exception>
         public abstract object? GetValue(object? target, int ordinal);
 
         /// <summary>Writes the Member at <paramref name="ordinal"/> in this type accessor.</summary>
+        /// <param name="target">The object to write; must be non-null with a compatible runtime type.</param>
+        /// <param name="ordinal">The Member's index in this type accessor.</param>
+        /// <param name="value">The value to write; converted by the CLR cast rule only — no numeric widening or narrowing.</param>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="ordinal"/> is outside this type accessor.</exception>
+        /// <exception cref="InvalidOperationException">The Member cannot be written.</exception>
+        /// <exception cref="ArgumentNullException"><paramref name="target"/> is null while the Member is an instance member.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or the value cannot be converted to the Member type. A Member exception propagates unwrapped.</exception>
         public abstract void SetValue(object? target, int ordinal, object? value);
 
         /// <summary>Maps a case-sensitive Member name to its ordinal in this type accessor.</summary>
+        /// <param name="name">The Member name.</param>
+        /// <param name="ordinal">The Member's index when found.</param>
+        /// <returns>False on a miss; a miss is not an exception.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null.</exception>
         public abstract bool TryGetOrdinal(string name, out int ordinal);
 
         /// <summary>The Members of this type accessor: instance properties and fields. Not methods, events, indexers, constants, or static properties and fields.</summary>
+        /// <returns>The Members in ordinal order.</returns>
         public abstract IReadOnlyList<Member> GetMembers();
 
         /// <summary>Whether <see cref="CreateNew"/> can produce an instance. Instance creation is not a Member.</summary>
         public abstract bool CreateNewSupported { get; }
 
         /// <summary>Produces an instance via a parameterless constructor, or the default value of a value type. The constructor call is an access; a value type's default value is not. Not a Member of this type accessor.</summary>
+        /// <returns>The new instance.</returns>
+        /// <exception cref="InvalidOperationException"><see cref="CreateNewSupported"/> is false.</exception>
+        /// <remarks>A constructor exception propagates unwrapped.</remarks>
         public abstract object CreateNew();
     }
 
@@ -86,6 +121,7 @@ namespace FastReflection
         private readonly Member[] _members;
         private readonly Func<object?>? _factory;
 
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
         internal RuntimeTypeAccessor(Type type, bool allowNonPublicAccessors)
         {
             _type = type;
@@ -180,6 +216,7 @@ namespace FastReflection
                 ? ordinal
                 : throw new MissingMemberException(_type.FullName, name);
 
+        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
         private static Type[] CollectMemberTypes(Type type)
         {
             if (!type.IsInterface) return new[] { type };
