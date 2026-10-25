@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
 using Nuke.Common.IO;
@@ -8,6 +9,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 [GitHubActions(
     "ci",
     GitHubActionsImage.WindowsLatest,
+    GitHubActionsImage.UbuntuLatest,
     OnPushBranches = new[] { "main" },
     OnPullRequestBranches = new[] { "main" },
     InvokedTargets = new[] { nameof(Test) },
@@ -56,14 +58,24 @@ class Build : NukeBuild
                 .EnableNoRestore());
         });
 
+    // .NET Framework test legs (net472, net48, ...) only run on Windows; modern legs (net6.0+) run everywhere
+    static bool IsNetFrameworkTfm(string tfm) => tfm.StartsWith("net") && tfm[3..].All(char.IsDigit);
+
     Target Test => _ => _
         .DependsOn(Compile)
         .Executes(() =>
         {
+            var frameworks = XDocument.Load(TestProject)
+                .Descendants("TargetFrameworks").Single().Value
+                .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm));
+
             DotNetTest(s => s
                 .SetProjectFile(TestProject)
                 .SetConfiguration(Configuration)
-                .EnableNoBuild());
+                .EnableNoBuild()
+                .CombineWith(frameworks, (settings, framework) => settings
+                    .SetFramework(framework)));
         });
 
     Target Pack => _ => _

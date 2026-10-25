@@ -24,6 +24,8 @@
 - Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`. See `docs/adr/0001-boxed-value-writes-update-the-box.md`.
 - Tests disable xunit parallelization assembly-wide because `FallbackTests` toggles the global `EmitHelper.ForceReflectionFallback` flag.
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0 have them in-box.
+- `ci.yml` is Nuke-generated, never hand-edited; regenerate via `./build.cmd --generate-configuration GitHubActions_ci --host GitHubActions`. Nuke runs `./build.cmd` on every runner incl. ubuntu — `build.cmd` line 1 is a POSIX branch that `exec`s `build.sh`; both `build.cmd` and `build.sh` must stay `100755` in git.
+- The `Test` target reads the test csproj `TargetFrameworks` and runs one `dotnet test -f <tfm>` per leg; `net<digits>` (.NET Framework) legs run only on Windows. New modern TFMs (e.g. net10.0) light up on both runners automatically.
 
 ## Agent skills
 
