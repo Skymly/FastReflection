@@ -24,6 +24,7 @@ namespace FastReflection.AotSmoke
                 ("getter-fallback", GetterFallback),
                 ("invoker-fallback", InvokerFallback),
                 ("span-invoker-fallback", SpanInvokerFallback),
+                ("bound-call-fallback", BoundCallFallback),
                 ("factory-fallback", FactoryFallback),
                 ("ref-typed-invoker-not-supported", RefTypedInvokerNotSupported),
             };
@@ -106,6 +107,23 @@ namespace FastReflection.AotSmoke
             var poco = new SmokePoco();
             var add = PocoType.GetMethod(nameof(SmokePoco.Add))!.CreateSpanInvoker();
             Equal(9, add(poco, new object?[] { 4, 5 }.AsSpan()), "span Add(4, 5)");
+        }
+
+        // A bound call resolving and completing through reflection completion (#35).
+        private static void BoundCallFallback()
+        {
+            var accessor = TypeAccessor.Create(PocoType);
+            var poco = new SmokePoco();
+
+            Equal(9, accessor.Invoke(poco, nameof(SmokePoco.Add), new object?[] { 4, 5 }), "bound Add(4, 5)");
+            Equal(6, accessor.Invoke(poco, nameof(SmokePoco.Twice), new object?[] { 3 }), "bound static Twice(3)");
+            Equal("initial", accessor.GetValue(poco, nameof(SmokePoco.Name)), "bound get Name");
+            accessor.SetValue(poco, nameof(SmokePoco.Count), 7);
+            Equal(7, poco.Count, "bound set Count");
+
+            if (accessor.CreateNew(Array.Empty<object?>()) is not SmokePoco fresh)
+                throw new InvalidOperationException("bound CreateNew did not produce a SmokePoco");
+            Equal("initial", fresh.Name, "bound CreateNew member state");
         }
 
         private static void FactoryFallback()

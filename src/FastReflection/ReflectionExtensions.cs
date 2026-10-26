@@ -1,4 +1,5 @@
 using System.Reflection;
+using FastReflection.Binding;
 using FastReflection.Emit;
 
 namespace FastReflection
@@ -205,6 +206,28 @@ namespace FastReflection
         /// <remarks>A constructor exception propagates unwrapped through the returned factory.</remarks>
         public static Func<object?> CreateFactory(this Type type, bool nonPublic = false)
             => AccessorEmitter.CreateFactory(type, nonPublic);
+
+        /// <summary>
+        /// A bounded converter between two runtime-known types — the sanctioned bound-call conversion
+        /// set plus spec explicit numeric conversions: identity, reference casts and unboxing in either
+        /// direction, every spec numeric conversion (widening and narrowing, <see langword="char"/>
+        /// included), <see cref="Nullable{T}"/> lift and unlift, and enum↔underlying.
+        /// User-defined <c>op_Implicit</c>/<c>op_Explicit</c> methods are never consulted.
+        /// Not a name lookup and not a <see cref="Type"/> extension — a <c>Create</c>-shaped access.
+        /// </summary>
+        /// <param name="sourceType">The declared source type.</param>
+        /// <param name="targetType">The target type.</param>
+        /// <returns>The converter; a boxed value in, a boxed value out.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="sourceType"/> or <paramref name="targetType"/> is null.</exception>
+        /// <exception cref="InvalidCastException">No sanctioned conversion exists between the two types — at <c>Create</c> time — or, on the returned converter, a value cannot be converted.</exception>
+        public static Func<object?, object?> CreateConverter(Type sourceType, Type targetType)
+        {
+            if (sourceType == null) throw new ArgumentNullException(nameof(sourceType));
+            if (targetType == null) throw new ArgumentNullException(nameof(targetType));
+            if (!BoundConversion.CanCreateConverter(sourceType, targetType))
+                throw new InvalidCastException($"No sanctioned conversion exists from '{sourceType}' to '{targetType}'.");
+            return value => BoundConversion.ConvertExplicit(value, sourceType, targetType);
+        }
 
 #if NET8_0_OR_GREATER
         /// <summary>

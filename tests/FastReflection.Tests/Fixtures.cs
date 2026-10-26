@@ -145,6 +145,142 @@ namespace FastReflection.Tests
     public class EmitLegOrdered : OrderedSample { }
     public class ReflectionLegOrdered : OrderedSample { }
 
+    // ============================== bound calls (#35) ==============================
+
+    /// <summary>The bound-call domain fixture: overloads, optionals, params, generics, indexers, statics, by-ref verbs.</summary>
+    public class BoundSample
+    {
+        public BoundSample() { }
+        public BoundSample(int v) { Value = v; }
+        public BoundSample(int v, string tag) { Value = v; Tag = tag; }
+
+        public int Value { get; set; } = 7;
+        public int GetOnly => 9;
+        public int SetOnly { set { } }
+        public string? Name { get; set; }
+        public int? NullableProp { get; set; }
+        public string Tag = "tag";
+        public int IndexValue;
+        public static int StaticProp { get; set; }
+        public static string? StaticField;
+        public const int ConstField = 3;
+
+        public int this[int i]
+        {
+            get => i * 2;
+            set => IndexValue = i + value;
+        }
+
+        public string this[string s] => s + "!";
+
+        public int Add(int a, int b) => a + b;
+        public long Widen(long x) => x;
+        public decimal ToDecimal(decimal d) => d;
+        public char ToChar(char c) => c;
+        public int? Nullables(int? v) => v;
+        public DayOfWeek Day(DayOfWeek d) => d;
+        public int EnumToInt(int v) => v;
+        public void Nothing() { }
+        public int Throwing() => throw new InvalidOperationException("boom");
+        public int Optional(int a, int b = 2) => a * 10 + b;
+        public int OptOver(int a) => a;
+        public int OptOver(int a, int b = 5) => a + b;
+        public string Named(int first, string second) => first + ":" + second;
+
+        public int Sum(params int[] xs)
+        {
+            var s = 0;
+            foreach (var x in xs) s += x;
+            return s;
+        }
+
+        public int SumTail(int head, params int[] xs) => head + xs.Length;
+        // Betterness: conversion quality precedes the normal-form tie-break — the int
+        // candidate beats the widening long one even though it fills a packed params slot.
+        public int HeadOrWide(int head, params int[] xs) => head;
+        public long HeadOrWide(long x) => x;
+        public T Echo<T>(T t) => t;
+        public T NewT<T>() where T : new() => new();
+        public T RefT<T>(T t) where T : class => t;
+        public int Overloaded(int x) => x;
+        public long Overloaded(long x) => x;
+        public string Amb(int? a, string b) => "a";
+        public string Amb(string a, int? b) => "b";
+
+        public int Swap(ref int a, ref int b)
+        {
+            var t = a;
+            a = b;
+            b = t;
+            return a;
+        }
+
+        public bool TryOut(string s, out int v) => int.TryParse(s, out v);
+        public int SumIn(in int a, in int b) => a + b;
+        public void SetThenThrow(ref int x) { x = 99; throw new InvalidOperationException("boom"); }
+        public static int StaticAdd(int a, int b) => a + b;
+        public int WithImplicit(int x) => x;
+        private int Secret() => 42;
+    }
+
+    /// <summary>Only converts through a user-defined op_Implicit — never sanctioned.</summary>
+    public class ImplicitArg
+    {
+        public static implicit operator int(ImplicitArg arg) => 5;
+    }
+
+    // Same cache rule as the *LegSample pair above: each bound-call leg needs its own type.
+    // Constructors are not inherited — the legs redeclare the ctor shapes for CreateNew binds.
+    public class EmitBoundLeg : BoundSample
+    {
+        public EmitBoundLeg() { }
+        public EmitBoundLeg(int v) : base(v) { }
+        public EmitBoundLeg(int v, string tag) : base(v, tag) { }
+    }
+
+    public class ReflectionBoundLeg : BoundSample
+    {
+        public ReflectionBoundLeg() { }
+        public ReflectionBoundLeg(int v) : base(v) { }
+        public ReflectionBoundLeg(int v, string tag) : base(v, tag) { }
+    }
+
+    // Per-leg hiding fixtures: 'new' shadows the inherited Add — most-derived wins.
+    public class EmitBoundDerived : EmitBoundLeg
+    {
+        public new int Add(int a, int b) => -1;
+    }
+
+    public class ReflectionBoundDerived : ReflectionBoundLeg
+    {
+        public new int Add(int a, int b) => -1;
+    }
+
+    // Per-leg struct fixtures: identical X/Y shapes for the value-type binds.
+    public struct EmitBoundStruct
+    {
+        public int X { get; set; }
+        public int Y;
+
+        public EmitBoundStruct(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
+    public struct ReflectionBoundStruct
+    {
+        public int X { get; set; }
+        public int Y;
+
+        public ReflectionBoundStruct(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+    }
+
     public class OrderedOverrideBase
     {
         [Ordinal(1)] public virtual int Late { get; set; }
