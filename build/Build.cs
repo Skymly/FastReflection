@@ -139,8 +139,9 @@ class Build : NukeBuild
 
     // Benchmark gate (docs/specs/1.0-quality-gates.md): every leg runs the suite under
     // --job short, then each entry in the committed baseline.json is compared against the
-    // produced mean — a FastReflection row >25% slower fails the job. BCL-baseline rows and
-    // reference-library rows are reported only. net10.0 joins automatically once the
+    // produced mean NORMALIZED by the run's report-only anchor — a FastReflection row >25%
+    // slower (normalized) fails the job. BCL-baseline rows and reference-library rows are
+    // reported only (and double as the anchor). net10.0 joins automatically once the
     // benchmark project gains the TFM.
     Target Benchmark => _ => _
         .Produces(BenchmarkDirectory)
@@ -182,8 +183,8 @@ class Build : NukeBuild
                 CheckBenchmarkGate(frameworks);
         });
 
-    // benchmarks/baseline.json is shaped { "<tfm>": { "<Type>.<Method>": <mean ns> } } and
-    // IS the gate set: FastReflection library rows only. The BCL/direct comparisons in
+    // benchmarks/baseline.json is shaped { "<tfm>": { "$anchor": <ns>, "<Type>.<Method>": <mean ns> } }
+    // and IS the gate set: FastReflection library rows only. The BCL/direct comparisons in
     // MemberAccessBenchmarks and every ReferenceLibraryBenchmarks row are reported-only —
     // the default-deny predicate puts any other produced row behind the gate, so a new
     // library row cannot merge unbaselined.
@@ -191,6 +192,27 @@ class Build : NukeBuild
     {
         "DirectCall", "PropertyInfo_GetValue", "MethodInfo_Invoke", "BclMethodInvoker_Invoke", "TryParse_Direct",
     };
+
+    // Hosted runners vary run-to-run by 1.3-1.8x on RAW means — each run is internally
+    // tight (min ≈ median ≈ mean), so the variance is a whole-VM speed factor, not noise
+    // bursts that more iterations could average out. The gate therefore compares each
+    // row's mean NORMALIZED by the run's speed factor: the geo-mean of every produced
+    // report-only row (BCL + reference libraries — FastReflection rows stay out so a
+    // suite-wide library regression is still caught). A ~0ns row like DirectCall cannot
+    // serve as a sample, so a 0.5ns floor applies. "$anchor" in baseline.json stores the
+    // baseline run's factor so ratios stay comparable across runs.
+    const string AnchorKey = "$anchor";
+    const double AnchorFloorNs = 0.5;
+
+    static double BenchmarkAnchor(List<(string Name, string Type, string Method, double Mean)> rows, string framework)
+    {
+        var means = rows.Where(r => !IsGatedBenchmark(r.Type, r.Method) && r.Mean > AnchorFloorNs)
+            .Select(r => r.Mean)
+            .ToList();
+        Assert.True(means.Count > 0,
+            $"{framework}: no report-only rows produced — cannot compute the normalization anchor for this leg");
+        return Math.Exp(means.Average(Math.Log));
+    }
 
     static bool IsGatedBenchmark(string type, string method) =>
         type != "ReferenceLibraryBenchmarks" &&
@@ -251,25 +273,43 @@ class Build : NukeBuild
                 baselineRows = new Dictionary<string, double>();
             }
 
+            double? actualAnchor = null, baselineAnchor = null;
+            if (baselineRows.Count > 0)
+            {
+                actualAnchor = BenchmarkAnchor(results, framework);
+                if (!baselineRows.TryGetValue(AnchorKey, out var storedAnchor) || storedAnchor <= 0)
+                {
+                    failures.Add($"{framework}: baseline section lacks {AnchorKey} — refresh benchmarks/baseline.json");
+                    continue;
+                }
+
+                baselineAnchor = storedAnchor;
+            }
+
             foreach (var row in results.OrderBy(x => x.Name))
             {
                 if (!baselineRows.TryGetValue(row.Name, out var baselineMean))
                 {
-                    if (IsGatedBenchmark(row.Type, row.Method))
+                    if (IsGatedBenchmark(row.Type, row.Method) && baselineRows.Count > 0)
                         failures.Add($"{framework} {row.Name}: gated row has no baseline entry — refresh benchmarks/baseline.json");
                     else
                         Serilog.Log.Information("{Framework} {Name}: {Mean:F1} ns (reported only)", framework, row.Name, row.Mean);
                     continue;
                 }
 
-                var limit = baselineMean * (1 + BenchmarkTolerance);
-                if (row.Mean > limit)
-                    failures.Add($"{framework} {row.Name}: {row.Mean:F1} ns is more than {BenchmarkTolerance:P0} slower than baseline {baselineMean:F1} ns");
+                var actualRatio = row.Mean / actualAnchor!.Value;
+                var baselineRatio = baselineMean / baselineAnchor!.Value;
+                var limit = baselineRatio * (1 + BenchmarkTolerance);
+                if (actualRatio > limit)
+                    failures.Add($"{framework} {row.Name}: normalized {actualRatio:F3} vs baseline {baselineRatio:F3} " +
+                                 $"(+{actualRatio / baselineRatio - 1:P0}, over {BenchmarkTolerance:P0}) — means {row.Mean:F1} ns vs {baselineMean:F1} ns");
                 else
-                    Serilog.Log.Information("{Framework} {Name}: {Mean:F1} ns vs baseline {Baseline:F1} ns", framework, row.Name, row.Mean, baselineMean);
+                    Serilog.Log.Information(
+                        "{Framework} {Name}: {Mean:F1} ns vs baseline {Baseline:F1} ns (normalized {Ratio:F3} vs {BaselineRatio:F3})",
+                        framework, row.Name, row.Mean, baselineMean, actualRatio, baselineRatio);
             }
 
-            foreach (var name in baselineRows.Keys.Except(results.Select(x => x.Name)))
+            foreach (var name in baselineRows.Keys.Where(k => k != AnchorKey).Except(results.Select(x => x.Name)))
                 failures.Add($"{framework} {name}: baseline entry produced no result");
         }
 
@@ -281,8 +321,12 @@ class Build : NukeBuild
         var baseline = new SortedDictionary<string, SortedDictionary<string, double>>(StringComparer.Ordinal);
         foreach (var framework in frameworks)
         {
-            baseline[framework] = new SortedDictionary<string, double>(StringComparer.Ordinal);
-            foreach (var row in ReadBenchmarkRows(BenchmarkDirectory / framework))
+            var rows = ReadBenchmarkRows(BenchmarkDirectory / framework);
+            baseline[framework] = new SortedDictionary<string, double>(StringComparer.Ordinal)
+            {
+                [AnchorKey] = BenchmarkAnchor(rows, framework),
+            };
+            foreach (var row in rows)
             {
                 if (IsGatedBenchmark(row.Type, row.Method))
                     baseline[framework][row.Name] = row.Mean;
