@@ -6,6 +6,7 @@
 - Test (all legs): `dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj`
 - Test single leg: append `-f net8.0` or `-f net472` (net472 leg consumes the `net462` library build)
 - Benchmarks: `dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -- --job short`
+- Benchmark gate: `./build.cmd Benchmark` runs `--job short` per benchmark leg into `artifacts/benchmarks/<tfm>/` and fails when a gated row's mean is >25% slower than `benchmarks/baseline.json` (`--benchmark-tolerance` to override, `--benchmark-filter` for a glob subset)
 
 ## Structure
 
@@ -27,6 +28,8 @@
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0 have them in-box.
 - `ci.yml` is Nuke-generated, never hand-edited; regenerate via `./build.cmd --generate-configuration GitHubActions_ci --host GitHubActions`. Nuke runs `./build.cmd` on every runner incl. ubuntu — `build.cmd` line 1 is a POSIX branch that `exec`s `build.sh`; both `build.cmd` and `build.sh` must stay `100755` in git.
 - The `Test` target reads the test csproj `TargetFrameworks` and runs one `dotnet test -f <tfm>` per leg; `net<digits>` (.NET Framework) legs run only on Windows. New modern TFMs (e.g. net10.0) light up on both runners automatically.
+- `benchmarks/baseline.json` IS the benchmark gate set: FastReflection library rows only (`MemberAccessBenchmarks` minus its BCL/direct rows — `DirectCall`, `PropertyInfo_GetValue`, `MethodInfo_Invoke`, `BclMethodInvoker_Invoke`, `TryParse_Direct`); `ReferenceLibraryBenchmarks` rows are reported, never gated, and a produced gated row missing from the file fails the gate too. Refresh is deliberate: `./build.cmd Benchmark --update-baseline`, review the diff, PR. `DotNext.Reflection` is net6.0+ only, so its comparison rows exist on net8.0 alone.
+- The `benchmark` workflow is a separate Nuke `GitHubActions` attribute (windows-latest only; `Benchmark` is slow so it stays off the ci runners); regenerate `benchmark.yml` via `--generate-configuration GitHubActions_benchmark --host GitHubActions`. Its `PublishCondition = "!cancelled()"` uploads `artifacts/benchmarks` even when the gate fails — the reports are the regression evidence.
 
 ## Agent skills
 

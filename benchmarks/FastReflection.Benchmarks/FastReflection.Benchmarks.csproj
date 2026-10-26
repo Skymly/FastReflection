@@ -10,6 +10,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="FastMember" Version="1.5.0" />
+    <!-- DotNext.Reflection ships net6.0-only assets (no netstandard2.0/2.1), so its
+         comparison rows exist on net6.0-compatible legs only — net8.0 today, net10.0
+         joins automatically; net472 has no compatible asset. -->
+    <PackageReference Include="DotNext.Reflection" Version="4.9.0" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>
 

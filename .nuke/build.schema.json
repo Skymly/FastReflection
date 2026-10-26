@@ -25,6 +25,7 @@
       "type": "string",
       "enum": [
         "AotSmoke",
+        "Benchmark",
         "Clean",
         "Compile",
         "Pack",
@@ -104,6 +105,15 @@
   "allOf": [
     {
       "properties": {
+        "BenchmarkFilter": {
+          "type": "string",
+          "description": "BenchmarkDotNet filter glob - default '*' runs the whole suite"
+        },
+        "BenchmarkTolerance": {
+          "type": "number",
+          "description": "Benchmark regression tolerance vs baseline, as a fraction - default 0.25",
+          "format": "double"
+        },
         "Configuration": {
           "type": "string",
           "description": "Configuration to build - Default is 'Debug' (local) or 'Release' (server)",
@@ -115,6 +125,10 @@
         "NuGetApiKey": {
           "type": "string",
           "description": "NuGet API key"
+        },
+        "UpdateBaseline": {
+          "type": "boolean",
+          "description": "Rewrite benchmarks/baseline.json from this run's results instead of gating"
         }
       }
     },
