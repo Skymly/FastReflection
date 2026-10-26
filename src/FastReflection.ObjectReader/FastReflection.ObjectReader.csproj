@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>FastReflection.ObjectReader</AssemblyName>
+    <RootNamespace>FastReflection.ObjectReader</RootNamespace>
+    <PackageId>Skymly.FastReflection.ObjectReader</PackageId>
+    <Description>An IEnumerable-to-DbDataReader adapter over FastReflection member accesses, for the SqlBulkCopy/DataTable.Load path. Satellite of Skymly.FastReflection.</Description>
+    <PackageTags>reflection;datareader;bulk-copy;performance</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" Visible="false" />
+    <!-- Public API only — the core grants this satellite no InternalsVisibleTo (ADR-0002/ADR-0003). -->
+    <ProjectReference Include="..\FastReflection\FastReflection.csproj" />
+  </ItemGroup>
+
+</Project>

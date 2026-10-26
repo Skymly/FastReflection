@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Xml.Linq;
@@ -62,7 +63,6 @@ class Build : NukeBuild
     readonly bool BenchmarkSkipRun;
 
     AbsolutePath SolutionFile => RootDirectory / "FastReflection.slnx";
-    AbsolutePath LibraryProject => RootDirectory / "src" / "FastReflection" / "FastReflection.csproj";
     AbsolutePath TestProject => RootDirectory / "tests" / "FastReflection.Tests" / "FastReflection.Tests.csproj";
     AbsolutePath SmokeProject => RootDirectory / "tests" / "FastReflection.AotSmoke" / "FastReflection.AotSmoke.csproj";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
@@ -345,12 +345,49 @@ class Build : NukeBuild
         .Produces(ArtifactsDirectory / "*.nupkg")
         .Executes(() =>
         {
-            DotNetPack(s => s
-                .SetProject(LibraryProject)
-                .SetConfiguration(Configuration)
-                .SetOutputDirectory(ArtifactsDirectory)
-                .EnableNoBuild());
+            foreach (var project in RootDirectory.GlobFiles("src/*/*.csproj"))
+            {
+                DotNetPack(s => s
+                    .SetProject(project)
+                    .SetConfiguration(Configuration)
+                    .SetOutputDirectory(ArtifactsDirectory)
+                    .EnableNoBuild());
+            }
+
+            CheckPackedAssemblyIdentity();
         });
+
+    // ADR-0003 gate: every packed assembly carries the strong-name flag and the one
+    // committed key pair — a single public key token across every packed assembly.
+    void CheckPackedAssemblyIdentity()
+    {
+        var tokens = new HashSet<string>();
+        var checkedAssemblies = 0;
+        var unpackDir = ArtifactsDirectory / "pack-check";
+        unpackDir.CreateDirectory();
+
+        foreach (var nupkg in ArtifactsDirectory.GlobFiles("*.nupkg"))
+        using (var zip = ZipFile.OpenRead(nupkg))
+        {
+            foreach (var entry in zip.Entries.Where(e => e.FullName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)))
+            {
+                var tempFile = unpackDir / $"{nupkg.NameWithoutExtension}-{entry.FullName.Replace('/', '-')}";
+                entry.ExtractToFile(tempFile, overwrite: true);
+                var name = System.Reflection.AssemblyName.GetAssemblyName(tempFile);
+                Assert.True(name.GetPublicKey()?.Length > 0,
+                    $"{nupkg.Name}: {entry.FullName} is not strong-named (ADR-0003: every shipped target signs with the committed key)");
+                tokens.Add(Convert.ToHexString(name.GetPublicKeyToken()!));
+                checkedAssemblies++;
+            }
+        }
+
+        Assert.True(checkedAssemblies > 0, "No assemblies found in the packed nupkgs");
+        Assert.True(tokens.Count == 1,
+            "Packed assemblies carry " + tokens.Count + " distinct public key tokens — " +
+            "ADR-0003 requires the one committed key pair to sign every target");
+        Serilog.Log.Information("Packed-assembly identity: {Count} assemblies, one public key token {Token}",
+            checkedAssemblies, tokens.Single());
+    }
 
     Target Publish => _ => _
         .DependsOn(Pack)

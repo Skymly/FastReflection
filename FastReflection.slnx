@@ -4,6 +4,8 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/FastReflection/FastReflection.csproj" />
+    <Project Path="src/FastReflection.ObjectReader/FastReflection.ObjectReader.csproj" />
+    <Project Path="src/FastReflection.XmlDocs/FastReflection.XmlDocs.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FastReflection.AotSmoke/FastReflection.AotSmoke.csproj" />

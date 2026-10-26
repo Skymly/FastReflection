@@ -1,44 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net462;netstandard2.0;net8.0</TargetFrameworks>
     <AssemblyName>FastReflection</AssemblyName>
     <RootNamespace>FastReflection</RootNamespace>
     <PackageId>Skymly.FastReflection</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Skymly</Authors>
     <Description>Reusable access over a runtime-known property, field, method, or constructor, and a type accessor for the instance properties and fields of a closed type. Falls back to reflection when dynamic code is unavailable. Supports .NET Framework 4.6.2+, .NET Core, and .NET 8+.</Description>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>reflection;emit;il;delegate;performance</PackageTags>
-    <RepositoryUrl>https://github.com/Skymly/FastReflection</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="all" />
   </ItemGroup>
 
-  <!-- DynamicMethod/ILGenerator are in-box on net462 and net8.0; netstandard2.0 needs the packages -->
+  <!-- DynamicMethod/ILGenerator are in-box on net462 and net8.0+; netstandard2.0 needs the packages -->
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.7.0" />
     <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
   </ItemGroup>
 
-  <!-- Build-time only: lets net462 compile on machines without the .NET Framework targeting pack (CI) -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net462'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-  </ItemGroup>
-
   <ItemGroup>
-    <InternalsVisibleTo Include="FastReflection.Tests" />
+    <!-- ADR-0003: the friend grant names the full public key of the one committed
+         key pair (FastReflection.snk); the test assembly signs with the same key. -->
+    <InternalsVisibleTo Include="FastReflection.Tests" Key="0024000004800000140100000602000000240000525341310008000001000100716a00b136c68f0bb531ec992e5d4c9d067aa57048ee53143e9eb28451f032655d804e0d0a633eb440e25899c60412a8f30c3dd9ef1620b7210cee4e85c84dd0db6f25084c63089ca8bc6b0328fcbee1ace261778290cdde53f2648769b20092549bacb31e6710af1305daa01daa8785881c756f8ebdd9fe42975ea55796a605e7118863567367ef9bde5b41870bc3fbfb61be85550f1808567a9b8c4d1fc6cfe8bdb4975361b12632b1382548b9087c2d40ce3b542805e9f0aca744302651604c291db3e9c08d4ae578b08beb3a843b96df52b267e05dc69874cc9dca53de87c27760544e9123d63bbb7f7cff14a830ec016ce600309e533eecaa2559c619cf" />
   </ItemGroup>
 
 </Project>
