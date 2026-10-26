@@ -3,7 +3,9 @@
 <!-- Intentional per-TFM differences (docs/specs/1.0-quality-gates.md):
      the net8.0 asset gains the span invokers and their delegates — they are #if-gated
      to NET8_0_OR_GREATER because System.Span<object?> requires a modern BCL surface.
-     Downlevel assets keep the object?[]-array invokers, which are the same accesses. -->
+     Downlevel assets keep the object?[]-array invokers, which are the same accesses.
+     The CP0008 entry is the CLR's automatic COM _Attribute interface — implemented by
+     Attribute subclasses on .NET Framework assets only; not a surface decision. -->
 <Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <Suppression>
     <DiagnosticId>CP0001</DiagnosticId>
@@ -28,5 +30,11 @@
     <Target>M:FastReflection.ReflectionExtensions.CreateSpanInvoker(System.Reflection.MethodInfo)</Target>
     <Left>lib/netstandard2.0/FastReflection.dll</Left>
     <Right>lib/net8.0/FastReflection.dll</Right>
+  </Suppression>
+  <Suppression>
+    <DiagnosticId>CP0008</DiagnosticId>
+    <Target>T:FastReflection.OrdinalAttribute</Target>
+    <Left>lib/netstandard2.0/FastReflection.dll</Left>
+    <Right>lib/net462/FastReflection.dll</Right>
   </Suppression>
 </Suppressions>

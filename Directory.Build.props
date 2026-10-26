@@ -5,7 +5,28 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Deterministic>true</Deterministic>
-    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- Strong naming (ADR-0003): one committed key pair signs every shipped target and the
+       test assemblies; the key is assembly identity, not a secret, so it lives in the repo.
+       AssemblyVersion is the package major only (1.0.0.0 across all of 1.x) so .NET Framework
+       consumers never need a binding redirect on a minor or patch; FileVersion carries the
+       full package version. $(Version) stays the SemVer source of truth. -->
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>$(MSBuildThisFileDirectory)FastReflection.snk</AssemblyOriginatorKeyFile>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>$([System.Version]::Parse('$(Version)').Major).0.0.0</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <Authors>Skymly</Authors>
+  </PropertyGroup>
+
+  <!-- net8.0 is past end of support (2026-11-10); the SDK warns NETSDK1138 on that leg.
+       Per #19 the leg drops only at a major release, so the suppression is scoped to the
+       net8.0 leg alone — the EOL stance stays visible rather than globally silent. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net8.0'">
+    <NoWarn>$(NoWarn);NETSDK1138</NoWarn>
   </PropertyGroup>
 
 </Project>

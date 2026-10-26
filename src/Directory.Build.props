@@ -3,8 +3,35 @@
   <!-- MSBuild imports only the nearest Directory.Build.props; chain the repo-root one. -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
+  <!-- Shared packaging props for every shipped project (#19, #34): the core and the two
+       satellites pack in lockstep — same TFM set, same $(Version) (set at the repo root),
+       MIT expression, snupkg symbols, SourceLink and a per-package README.md wired through
+       PackageReadmeFile (each project Pack-includes its own README.md). -->
+  <PropertyGroup>
+    <TargetFrameworks>net462;netstandard2.0;net8.0;net10.0</TargetFrameworks>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RepositoryUrl>https://github.com/Skymly/FastReflection</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- No Microsoft.SourceLink.GitHub PackageReference: SourceLink ships in the .NET SDK
+         since .NET 8 (the package is deprecated), and the 8.0.0 package's transitive
+         Microsoft.Build.Tasks.Git carries GHSA-23fw-v26w-5fgq (NU1902). The in-box
+         provider auto-detects GitHub from RepositoryUrl. -->
+    <!-- Build-time only: lets net462 compile on machines without the .NET Framework
+         targeting pack (CI) -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net462'" />
+  </ItemGroup>
+
   <!-- Shipped-project quality gates (docs/specs/1.0-quality-gates.md).
-       Applies to every project under src/ — the core today, the satellites when #36/#37 land them.
+       Applies to every project under src/ — the core and the satellites (#34).
        Tests, benchmarks, smoke and build projects live outside src/ and keep warnings, not errors. -->
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
@@ -23,8 +50,8 @@
        - CS1591 is NOT suppressed: public members carry XML documentation, <exception> included (#8).
        - IL2xxx/IL3xxx are NOT suppressed here: AOT/trim findings are suppressed at the call site
          via UnconditionalSuppressMessage, pending the #9 annotation contract in #38.
-       - NETSDK1138: add Condition="'$(TargetFramework)' == 'net8.0'" suppression only once that
-         leg is past EOL — the EOL stance stays visible (#19 "drops only at a major").
+       - NETSDK1138 is suppressed at the repo root scoped to the net8.0 leg — the leg drops
+         only at a major release (#19); the EOL stance stays visible.
        Any further suppression needs an inline justification. -->
 
   <ItemGroup>
@@ -34,7 +61,7 @@
   <!-- PublicAPI baselines: the analyzer's conditional-API mechanism is multiple file
        instances (verified against 5.6.0 — no in-file #if support). The shared files carry
        the full surface; PublicAPI/<tfm>/PublicAPI.*.txt carries per-TFM additions
-       (net8.0: the #if-gated span invokers). Unshipped drift fails the build. -->
+       (net8.0/net10.0: the #if-gated span invokers). Unshipped drift fails the build. -->
   <ItemGroup>
     <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Shipped.txt')" />
     <AdditionalFiles Include="$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt" Condition="Exists('$(MSBuildProjectDirectory)\PublicAPI.Unshipped.txt')" />

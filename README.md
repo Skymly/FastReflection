@@ -4,7 +4,7 @@ Turns a property, field, method, or constructor already known at runtime into a 
 
 A type accessor names the instance properties and fields of a closed type. This library does not include dynamic-object or DLR dispatch, user-defined or inferred conversions, member-path grammars or events by name, contextual metadata or nullability meaning (XML-doc reading ships in `Skymly.FastReflection.XmlDocs`), or compile-time generated access. Terms live in [CONTEXT.md](CONTEXT.md).
 
-**Target frameworks**: `net462`, `netstandard2.0`, `net8.0`
+**Target frameworks**: `net462`, `netstandard2.0`, `net8.0`, `net10.0`
 
 ## Quick start
 
@@ -53,7 +53,7 @@ wrapped["Value"] = 42;
 - Indexer properties are not Members, and they are not subjects of `CreateGetter` / `CreateSetter`. Call `get_Item` / `set_Item` through `CreateInvoker`.
 - An open generic type has no type accessor. An open generic method must be constructed before an access can cover it.
 - `CreateInvoker<TDelegate>()` binds a public exact signature with `CreateDelegate`; that bind is not an access. Adaptation, including `Ref<T>` and non-public methods `CreateDelegate` cannot bind, is an access and throws when dynamic code is unavailable.
-- `net8.0` `CreateSpanInvoker` is an access over the caller's `Span<object?>` buffer (a span of references cannot be `stackalloc`'d). It still boxes. When dynamic code is unavailable it falls back to BCL `MethodInvoker` / `ConstructorInvoker`.
+- `net8.0+` `CreateSpanInvoker` is an access over the caller's `Span<object?>` buffer (a span of references cannot be `stackalloc`'d). It still boxes. When dynamic code is unavailable it falls back to BCL `MethodInvoker` / `ConstructorInvoker`.
 - `CanWrite` means that type accessor can write the Member, including an init-only property after construction. It does not mean C# can assign it, and `required` is not enforced.
 - A name identifies at most one Member. Which declaration wins is not promised. An ordinal is not an identity outside the type accessor you hold.
 
@@ -88,9 +88,12 @@ received the runtime-level speedups added in .NET 7+:
 ```
 CONTEXT.md                      domain glossary
 docs/adr/                       decision records
-src/FastReflection/             library (net462;netstandard2.0;net8.0)
-tests/FastReflection.Tests/     xunit (net472 → net462 build; net6.0 → netstandard2.0; net8.0)
-benchmarks/                     BenchmarkDotNet (net472;net8.0)
+src/FastReflection/             core library (net462;netstandard2.0;net8.0;net10.0)
+src/FastReflection.ObjectReader/  satellite: IEnumerable → DbDataReader (same TFM set)
+src/FastReflection.XmlDocs/       satellite: XML-docs reads (same TFM set)
+tests/FastReflection.Tests/     xunit (net472 → net462 build; net6.0 → netstandard2.0; net8.0; net10.0)
+tests/FastReflection.AotSmoke/  PublishAot smoke app (net8.0;net10.0)
+benchmarks/                     BenchmarkDotNet (net472;net8.0;net10.0)
 docs/research/                  design research notes
 ```
 
@@ -108,8 +111,8 @@ dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -f net472 -- --job
 
 CI is driven by [Nuke](https://nuke.build) (`build.cmd <Target>`: `Clean`/`Restore`/`Compile`/`Test`/`Pack`/`Publish`).
 
-- `ci.yml` runs `Test` on every push/PR to `main` (all three test legs).
-- `publish.yml` runs `Publish` on tags matching `v*.*.*` and pushes `Skymly.FastReflection` to nuget.org. Requires a repo secret named `NUGET_API_KEY`; the package version comes from `<Version>` in `src/FastReflection/FastReflection.csproj` — bump it before tagging.
+- `ci.yml` runs `Test` on every push/PR to `main` (all four test legs on windows; the non-framework legs plus the linux-x64 AOT smoke on ubuntu).
+- `publish.yml` runs `Publish` on tags matching `v*.*.*` and pushes the three `Skymly.FastReflection*` packages to nuget.org. Requires a repo secret named `NUGET_API_KEY`; the lockstep package version comes from `<Version>` in `Directory.Build.props` — bump it before tagging.
 
 ```bash
 git tag v0.1.0 && git push --tags   # triggers nuget.org publish
