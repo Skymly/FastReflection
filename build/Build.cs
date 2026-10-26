@@ -56,6 +56,11 @@ class Build : NukeBuild
     [Parameter("BenchmarkDotNet filter glob - default '*' runs the whole suite")]
     readonly string BenchmarkFilter = "*";
 
+    // Compose with --update-baseline for a CI-sourced refresh: download a run's `benchmarks`
+    // artifact into artifacts/benchmarks/, then write baseline.json from those reports.
+    [Parameter("Skip running the suite — write/compare against the artifacts already under artifacts/benchmarks")]
+    readonly bool BenchmarkSkipRun;
+
     AbsolutePath SolutionFile => RootDirectory / "FastReflection.slnx";
     AbsolutePath LibraryProject => RootDirectory / "src" / "FastReflection" / "FastReflection.csproj";
     AbsolutePath TestProject => RootDirectory / "tests" / "FastReflection.Tests" / "FastReflection.Tests.csproj";
@@ -141,20 +146,31 @@ class Build : NukeBuild
         .Produces(BenchmarkDirectory)
         .Executes(() =>
         {
-            BenchmarkDirectory.CreateOrCleanDirectory();
+            // --benchmark-skip-run reads whatever legs already exist under
+            // artifacts/benchmarks (e.g. a downloaded CI artifact) instead of running them.
+            var frameworks = BenchmarkSkipRun
+                ? BenchmarkDirectory.GlobDirectories("*").Select(d => d.Name).ToList()
+                : TargetFrameworksOf(BenchmarkProject)
+                    .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm))
+                    .ToList();
+            Assert.True(frameworks.Count > 0,
+                BenchmarkSkipRun
+                    ? $"No benchmark legs found under {BenchmarkDirectory} — run the suite or download a run's 'benchmarks' artifact there first"
+                    : "No runnable benchmark legs");
 
-            var frameworks = TargetFrameworksOf(BenchmarkProject)
-                .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm))
-                .ToList();
-
-            foreach (var framework in frameworks)
+            if (!BenchmarkSkipRun)
             {
-                // Release unconditionally — numbers under the Debug default are meaningless.
-                ProcessTasks.StartProcess("dotnet",
-                        $"run --project \"{BenchmarkProject}\" --configuration Release --framework {framework} -- " +
-                        $"--job short --filter \"{BenchmarkFilter}\" --artifacts \"{BenchmarkDirectory / framework}\" --exporters json",
-                        workingDirectory: RootDirectory)
-                    .AssertZeroExitCode();
+                BenchmarkDirectory.CreateOrCleanDirectory();
+
+                foreach (var framework in frameworks)
+                {
+                    // Release unconditionally — numbers under the Debug default are meaningless.
+                    ProcessTasks.StartProcess("dotnet",
+                            $"run --project \"{BenchmarkProject}\" --configuration Release --framework {framework} -- " +
+                            $"--job short --filter \"{BenchmarkFilter}\" --artifacts \"{BenchmarkDirectory / framework}\" --exporters json",
+                            workingDirectory: RootDirectory)
+                        .AssertZeroExitCode();
+                }
             }
 
             if (UpdateBaseline && BenchmarkFilter != "*")

@@ -109,6 +109,10 @@
           "type": "string",
           "description": "BenchmarkDotNet filter glob - default '*' runs the whole suite"
         },
+        "BenchmarkSkipRun": {
+          "type": "boolean",
+          "description": "Skip running the suite — write/compare against the artifacts already under artifacts/benchmarks"
+        },
         "BenchmarkTolerance": {
           "type": "number",
           "description": "Benchmark regression tolerance vs baseline, as a fraction - default 0.25",
