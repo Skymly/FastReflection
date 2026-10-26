@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using FastReflection.Binding;
 using FastReflection.Emit;
 
 namespace FastReflection
@@ -99,7 +100,7 @@ namespace FastReflection
         /// <returns>The Members in ordinal order: Members carrying <see cref="OrdinalAttribute"/> come first, ascending by its value; Members without it follow; equal values keep enumeration order.</returns>
         public abstract IReadOnlyList<Member> GetMembers();
 
-        /// <summary>Whether <see cref="CreateNew"/> can produce an instance. Instance creation is not a Member.</summary>
+        /// <summary>Whether <see cref="CreateNew()"/> can produce an instance. Instance creation is not a Member.</summary>
         public abstract bool CreateNewSupported { get; }
 
         /// <summary>Produces an instance via a parameterless constructor, or the default value of a value type. The constructor call is an access; a value type's default value is not. Not a Member of this type accessor.</summary>
@@ -107,6 +108,137 @@ namespace FastReflection
         /// <exception cref="InvalidOperationException"><see cref="CreateNewSupported"/> is false.</exception>
         /// <remarks>A constructor exception propagates unwrapped.</remarks>
         public abstract object CreateNew();
+
+        // ============================== bound calls ==============================
+        // A bound call is a name lookup plus an argument signature resolved once, then run as an
+        // adapted invoker through the same emit/reflection machinery — it is not an access and not
+        // a Member. The resolver's sanctioned conversions are identity, reference assignment,
+        // unboxing, Nullable<T>, enum↔underlying, and spec §10.2.3 primitive widening (including
+        // →decimal, excluding byte→char); null applies only to nullable targets; names are
+        // case-sensitive; user-defined conversions, type inference, const narrowing, and
+        // extension-method search never apply. Named arguments reorder by parameter name,
+        // params binds in normal or expanded form, optional parameters fill (a candidate needing
+        // no substitution beats one that fills), and explicit generic type arguments bind with
+        // constraint checks. The bound-invoker cache lives on this accessor, keyed by
+        // (member kind, name, normalized signature); growth is bounded only by call-site variety.
+
+        /// <summary>Invokes the method with this case-sensitive name, resolving overloads against the supplied arguments.</summary>
+        /// <param name="target">The object to call; must be compatible with the resolved member — ignored when it is static.</param>
+        /// <param name="name">The case-sensitive method name, including accessor spellings such as <c>get_Item</c>.</param>
+        /// <param name="args">The positional arguments; must not be null.</param>
+        /// <returns>The return value, boxed; null for a void method.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null — or <paramref name="args"/> is null — or <paramref name="target"/> is null on an instance method.</exception>
+        /// <exception cref="MissingMemberException">No method with this name exists at this accessor's visibility.</exception>
+        /// <exception cref="MissingMethodException">Candidates exist but none is applicable to the arguments.</exception>
+        /// <exception cref="AmbiguousMatchException">The best match is a tie between applicable overloads.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted by the sanctioned set. A callee exception propagates unwrapped; <see langword="ref"/>/<see langword="out"/> values are not written back.</exception>
+        public abstract object? Invoke(object? target, string name, params object?[]? args);
+
+        /// <summary>Invokes the method with this case-sensitive name, with named arguments and explicit generic type arguments.</summary>
+        /// <param name="target">The object to call; must be compatible with the resolved member — ignored when it is static.</param>
+        /// <param name="name">The case-sensitive method name.</param>
+        /// <param name="args">The positional arguments; named arguments fill parameters they do not cover.</param>
+        /// <param name="namedArgs">Named arguments matched to parameter names, case-sensitively; an unmatched name makes the candidate inapplicable.</param>
+        /// <param name="typeArguments">Explicit type arguments for a generic method definition, with constraint checks; generic type inference never applies.</param>
+        /// <returns>The return value, boxed; null for a void method.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null — or <paramref name="args"/> is null — or <paramref name="target"/> is null on an instance method.</exception>
+        /// <exception cref="MissingMemberException">No method with this name exists at this accessor's visibility.</exception>
+        /// <exception cref="MissingMethodException">Candidates exist but none is applicable, including an unmatched named argument or bad arity.</exception>
+        /// <exception cref="AmbiguousMatchException">The best match is a tie between applicable overloads.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted by the sanctioned set. A callee exception propagates unwrapped; <see langword="ref"/>/<see langword="out"/> values are not written back.</exception>
+        public abstract object? Invoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments);
+
+        /// <summary><see cref="Invoke(object?, string, object?[])"/> that returns false on a name miss or a failed bind instead of throwing. Every later stage — null <paramref name="args"/>, target rules, conversion, callee — propagates unchanged.</summary>
+        /// <param name="target">The object to call; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive method name.</param>
+        /// <param name="args">The positional arguments.</param>
+        /// <param name="result">The return value, boxed; null when the bind fails.</param>
+        /// <returns>False when the name is null or absent, no candidate is applicable, or the best match is a tie; true on a completed call.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="args"/> is null — or <paramref name="target"/> is null on an instance method.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted. A callee exception propagates unwrapped.</exception>
+        public abstract bool TryInvoke(object? target, string name, object?[]? args, out object? result);
+
+        /// <summary><see cref="Invoke(object?, string, object?[], IReadOnlyDictionary{string, object?}, Type[])"/> that returns false on a name miss or a failed bind instead of throwing.</summary>
+        /// <param name="target">The object to call; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive method name.</param>
+        /// <param name="args">The positional arguments.</param>
+        /// <param name="namedArgs">Named arguments matched to parameter names, case-sensitively.</param>
+        /// <param name="typeArguments">Explicit type arguments for a generic method definition.</param>
+        /// <param name="result">The return value, boxed; null when the bind fails.</param>
+        /// <returns>False when the name is null or absent, no candidate is applicable, or the best match is a tie; true on a completed call.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="args"/> is null — or <paramref name="target"/> is null on an instance method.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted. A callee exception propagates unwrapped.</exception>
+        public abstract bool TryInvoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments, out object? result);
+
+        /// <summary>Reads the property or field with this case-sensitive name — instance or static, indexer included — resolved against the supplied index arguments.</summary>
+        /// <param name="target">The object to read; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive property or field name; the indexer binds under its item name (typically <c>Item</c>).</param>
+        /// <param name="index">The index arguments for an indexer; empty for an ordinary member; must not be null.</param>
+        /// <returns>The member value.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null — or <paramref name="index"/> is null — or <paramref name="target"/> is null on an instance member.</exception>
+        /// <exception cref="MissingMemberException">No property or field with this name exists at this accessor's visibility.</exception>
+        /// <exception cref="MissingMethodException">The name exists but no getter is applicable, including bad index arity.</exception>
+        /// <exception cref="AmbiguousMatchException">The best match is a tie between applicable indexer overloads.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an index argument cannot be converted. A getter exception propagates unwrapped.</exception>
+        /// <remarks>This is a bound call, not a Member read: the domain adds statics and indexers to the instance Member domain, and arguments convert by the sanctioned set.</remarks>
+        public abstract object? GetValue(object? target, string name, params object?[]? index);
+
+        /// <summary>Writes the property or field with this case-sensitive name — instance or static, indexer included — resolved against the value and supplied index arguments.</summary>
+        /// <param name="target">The object to write; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive property or field name; the indexer binds under its item name.</param>
+        /// <param name="value">The value to write; converted by the sanctioned set.</param>
+        /// <param name="index">The index arguments for an indexer; empty for an ordinary member; must not be null.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="name"/> is null — or <paramref name="index"/> is null — or <paramref name="target"/> is null on an instance member.</exception>
+        /// <exception cref="MissingMemberException">No property or field with this name exists at this accessor's visibility.</exception>
+        /// <exception cref="MissingMethodException">The name exists but no setter is applicable — including a get-only property and bad index arity.</exception>
+        /// <exception cref="AmbiguousMatchException">The best match is a tie between applicable indexer overloads.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted. A setter exception propagates unwrapped.</exception>
+        /// <remarks>A bound call, not a Member write: boxed value-type writes persist through the box per ADR-0001.</remarks>
+        public abstract void SetValue(object? target, string name, object? value, params object?[]? index);
+
+        /// <summary><see cref="GetValue(object?, string, object?[])"/> that returns false on a name miss or a failed bind instead of throwing.</summary>
+        /// <param name="target">The object to read; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive property or field name.</param>
+        /// <param name="index">The index arguments for an indexer.</param>
+        /// <param name="value">The member value; null when the bind fails.</param>
+        /// <returns>False when the name is null or absent, no getter is applicable, or the best match is a tie.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="index"/> is null — or <paramref name="target"/> is null on an instance member.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an index argument cannot be converted. A getter exception propagates unwrapped.</exception>
+        public abstract bool TryGetValue(object? target, string name, object?[]? index, out object? value);
+
+        /// <summary><see cref="SetValue(object?, string, object?, object?[])"/> that returns false on a name miss or a failed bind instead of throwing.</summary>
+        /// <param name="target">The object to write; ignored when the resolved member is static.</param>
+        /// <param name="name">The case-sensitive property or field name.</param>
+        /// <param name="value">The value to write; converted by the sanctioned set.</param>
+        /// <param name="index">The index arguments for an indexer.</param>
+        /// <returns>False when the name is null or absent, no setter is applicable, or the best match is a tie.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="index"/> is null — or <paramref name="target"/> is null on an instance member.</exception>
+        /// <exception cref="InvalidCastException">The target's runtime type does not match, or an argument cannot be converted. A setter exception propagates unwrapped.</exception>
+        public abstract bool TrySetValue(object? target, string name, object? value, object?[]? index);
+
+        /// <summary>Produces an instance by resolving a constructor against the supplied arguments. A value type with no applicable declared constructor yields its default value.</summary>
+        /// <param name="args">The positional arguments; must not be null.</param>
+        /// <param name="namedArgs">Named arguments matched to parameter names, case-sensitively.</param>
+        /// <returns>The new instance.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="args"/> is null.</exception>
+        /// <exception cref="MissingMethodException">No declared constructor is applicable, including an unmatched named argument or bad arity.</exception>
+        /// <exception cref="AmbiguousMatchException">The best match is a tie between applicable constructors.</exception>
+        /// <exception cref="InvalidCastException">An argument cannot be converted by the sanctioned set. A constructor exception propagates unwrapped.</exception>
+        /// <remarks><see cref="CreateNewSupported"/> keeps its parameterless meaning; this overload does not change it.</remarks>
+        public abstract object CreateNew(object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs = null);
+
+        /// <summary><see cref="CreateNew(object?[], IReadOnlyDictionary{string, object?})"/> that returns false on a failed bind instead of throwing.</summary>
+        /// <param name="args">The positional arguments.</param>
+        /// <param name="namedArgs">Named arguments matched to parameter names, case-sensitively.</param>
+        /// <param name="result">The new instance; null when the bind fails.</param>
+        /// <returns>False when no declared constructor is applicable or the best match is a tie.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="args"/> is null.</exception>
+        /// <exception cref="InvalidCastException">An argument cannot be converted. A constructor exception propagates unwrapped.</exception>
+        public abstract bool TryCreateNew(object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, out object? result);
+
+        /// <summary>The distinct case-sensitive names bindable at this accessor's visibility: methods, properties, fields, and the indexer item name. Accessor <c>get_</c>/<c>set_</c> spellings and constructors are not listed; overloads collapse to one entry.</summary>
+        /// <returns>The bindable names, in enumeration order.</returns>
+        public abstract IReadOnlyList<string> GetMemberNames();
     }
 
     internal sealed class RuntimeTypeAccessor : TypeAccessor
@@ -128,15 +260,19 @@ namespace FastReflection
         }
 
         private readonly Type _type;
+        private readonly bool _nonPublic;
         private readonly Dictionary<string, int> _map;
         private readonly Entry[] _entries;
         private readonly Member[] _members;
         private readonly Func<object?>? _factory;
+        private readonly ConcurrentDictionary<BoundSignature, BoundCall> _bound = new();
+        private BoundTables? _tables;
 
         [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
         internal RuntimeTypeAccessor(Type type, bool allowNonPublicAccessors)
         {
             _type = type;
+            _nonPublic = allowNonPublicAccessors;
 
             var flags = BindingFlags.Instance | BindingFlags.Public;
             if (allowNonPublicAccessors) flags |= BindingFlags.NonPublic;
@@ -247,6 +383,192 @@ namespace FastReflection
         public override object CreateNew()
             => _factory?.Invoke()
                ?? throw new InvalidOperationException($"Type '{_type}' has no parameterless constructor.");
+
+        // ============================== bound calls ==============================
+
+        public override object? Invoke(object? target, string name, params object?[]? args)
+            => BoundInvoke(target, name, args, null, null);
+
+        public override object? Invoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments)
+            => BoundInvoke(target, name, args, namedArgs, typeArguments);
+
+        public override bool TryInvoke(object? target, string name, object?[]? args, out object? result)
+            => TryBoundInvoke(target, name, args, null, null, out result);
+
+        public override bool TryInvoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments, out object? result)
+            => TryBoundInvoke(target, name, args, namedArgs, typeArguments, out result);
+
+        public override object? GetValue(object? target, string name, params object?[]? index)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            var call = GetBoundCall(new BoundSignature(BoundKind.Get, name, SigTypes(index), null, null, null));
+            return call.Run(target, index, null);
+        }
+
+        public override void SetValue(object? target, string name, object? value, params object?[]? index)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            var combined = CombinedArgs(index, value);
+            var call = GetBoundCall(new BoundSignature(BoundKind.Set, name, SigTypes(combined), null, null, null));
+            call.Run(target, index, combined, null);
+        }
+
+        public override bool TryGetValue(object? target, string name, object?[]? index, out object? value)
+        {
+            value = null;
+            if (name == null) return false;
+            BoundCall call;
+            try
+            {
+                call = GetBoundCall(new BoundSignature(BoundKind.Get, name, SigTypes(index), null, null, null));
+            }
+            catch (Exception e) when (IsBindFailure(e))
+            {
+                return false;
+            }
+            value = call.Run(target, index, null);
+            return true;
+        }
+
+        public override bool TrySetValue(object? target, string name, object? value, object?[]? index)
+        {
+            if (name == null) return false;
+            var combined = CombinedArgs(index, value);
+            BoundCall call;
+            try
+            {
+                call = GetBoundCall(new BoundSignature(BoundKind.Set, name, SigTypes(combined), null, null, null));
+            }
+            catch (Exception e) when (IsBindFailure(e))
+            {
+                return false;
+            }
+            call.Run(target, index, combined, null);
+            return true;
+        }
+
+        public override object CreateNew(object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs = null)
+        {
+            SplitNamed(namedArgs, out var names, out var namedTypes, out var namedValues);
+            var call = GetBoundCall(new BoundSignature(BoundKind.Ctor, string.Empty, SigTypes(args), names, namedTypes, null));
+            return call.Run(null, args, namedValues)!;
+        }
+
+        public override bool TryCreateNew(object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, out object? result)
+        {
+            result = null;
+            BoundCall call;
+            object?[]? namedValues;
+            try
+            {
+                SplitNamed(namedArgs, out var names, out var namedTypes, out namedValues);
+                call = GetBoundCall(new BoundSignature(BoundKind.Ctor, string.Empty, SigTypes(args), names, namedTypes, null));
+            }
+            catch (Exception e) when (IsBindFailure(e))
+            {
+                return false;
+            }
+            result = call.Run(null, args, namedValues);
+            return true;
+        }
+
+        public override IReadOnlyList<string> GetMemberNames() => Tables.MemberNames;
+
+        private object? BoundInvoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments)
+        {
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            SplitNamed(namedArgs, out var names, out var namedTypes, out var namedValues);
+            var call = GetBoundCall(new BoundSignature(BoundKind.Invoke, name, SigTypes(args), names, namedTypes, typeArguments));
+            return call.Run(target, args, namedValues);
+        }
+
+        private bool TryBoundInvoke(object? target, string name, object?[]? args, IReadOnlyDictionary<string, object?>? namedArgs, Type[]? typeArguments, out object? result)
+        {
+            result = null;
+            if (name == null) return false;
+            BoundCall call;
+            object?[]? namedValues;
+            try
+            {
+                SplitNamed(namedArgs, out var names, out var namedTypes, out namedValues);
+                call = GetBoundCall(new BoundSignature(BoundKind.Invoke, name, SigTypes(args), names, namedTypes, typeArguments));
+            }
+            catch (Exception e) when (IsBindFailure(e))
+            {
+                return false;
+            }
+            result = call.Run(target, args, namedValues);
+            return true;
+        }
+
+        // Stages 1–2 of the bound-call trigger order — the only failures Try* swallows.
+        // MissingMethodException is a MissingMemberException subclass; both name the bind-miss set.
+        private static bool IsBindFailure(Exception e)
+            => e is MissingMemberException or AmbiguousMatchException;
+
+        private BoundTables Tables => _tables ??= BoundTables.Build(_type, _nonPublic);
+
+        private BoundCall GetBoundCall(in BoundSignature signature)
+        {
+            if (_bound.TryGetValue(signature, out var call)) return call;
+            return _bound.GetOrAdd(signature, ResolveBound);
+        }
+
+        private BoundCall ResolveBound(BoundSignature signature)
+        {
+            var tables = Tables;
+            switch (signature.Kind)
+            {
+                case BoundKind.Invoke:
+                    return BoundResolver.ResolveInvoke(tables, signature);
+                case BoundKind.Get:
+                    return BoundResolver.ResolveGetSet(tables, false, signature, _nonPublic);
+                case BoundKind.Set:
+                    return BoundResolver.ResolveGetSet(tables, true, signature, _nonPublic);
+                default:
+                    return BoundResolver.ResolveCtor(tables, signature);
+            }
+        }
+
+        /// <summary>The setter's argument array: index arguments plus the trailing value.</summary>
+        private static object?[] CombinedArgs(object?[]? index, object? value)
+        {
+            var combined = new object?[(index?.Length ?? 0) + 1];
+            if (index != null) Array.Copy(index, combined, index.Length);
+            combined[combined.Length - 1] = value;
+            return combined;
+        }
+
+        /// <summary>Runtime argument types for the signature key; a null argument contributes a null slot.</summary>
+        private static Type?[]? SigTypes(object?[]? args)
+        {
+            if (args == null) return null;
+            var types = new Type?[args.Length];
+            for (var i = 0; i < args.Length; i++)
+                types[i] = args[i]?.GetType();
+            return types;
+        }
+
+        /// <summary>Splits a named-argument dictionary into the signature's names/types and the call's value array, all in supplied order.</summary>
+        private static void SplitNamed(IReadOnlyDictionary<string, object?>? namedArgs, out string[]? names, out Type?[]? types, out object?[]? values)
+        {
+            names = null;
+            types = null;
+            values = null;
+            if (namedArgs == null) return;
+
+            names = new string[namedArgs.Count];
+            types = new Type?[namedArgs.Count];
+            values = new object?[namedArgs.Count];
+            var i = 0;
+            foreach (var kv in namedArgs)
+            {
+                names[i] = kv.Key;
+                types[i] = kv.Value?.GetType();
+                values[i] = kv.Value;
+                i++;
+            }
+        }
 
         private int RequireOrdinal(string name)
             => _map.TryGetValue(name, out var ordinal)
