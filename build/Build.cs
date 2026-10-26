@@ -17,15 +17,16 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     InvokedTargets = new[] { nameof(Test) },
     EnableGitHubToken = true)]
 // Dedicated workflow: benchmark legs are slow, so the gate keeps its own windows-latest
-// job off the ci runners. !cancelled() uploads the artifacts even when the gate fails —
-// the run's reports are the regression evidence.
+// job off the ci runners. cancelled()==false uploads the artifacts even when the gate
+// fails — the run's reports are the regression evidence. (Written without a leading `!`:
+// an unquoted `!expr` in YAML parses as a tag and the workflow file fails to load.)
 [GitHubActions(
     "benchmark",
     GitHubActionsImage.WindowsLatest,
     OnPushBranches = new[] { "main" },
     OnPullRequestBranches = new[] { "main" },
     InvokedTargets = new[] { nameof(Benchmark) },
-    PublishCondition = "!cancelled()")]
+    PublishCondition = "cancelled() == false")]
 [GitHubActions(
     "publish",
     GitHubActionsImage.WindowsLatest,
