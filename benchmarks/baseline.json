@@ -1,0 +1,21 @@
+{
+  "net472": {
+    "$anchor": 67.43705973654197,
+    "MemberAccessBenchmarks.FastReflection_Getter": 6.431081394354503,
+    "MemberAccessBenchmarks.FastReflection_Invoker": 7.545344531536102,
+    "MemberAccessBenchmarks.TryParse_ObjectArray": 94.02883847554524,
+    "MemberAccessBenchmarks.TryParse_Ref": 83.18652311960857,
+    "MemberAccessBenchmarks.TypeAccessor_ByName": 30.68806032339732,
+    "MemberAccessBenchmarks.TypeAccessor_ByOrdinal": 8.253973225752512
+  },
+  "net8.0": {
+    "$anchor": 10.727407437955215,
+    "MemberAccessBenchmarks.FastReflection_Getter": 7.10937629143397,
+    "MemberAccessBenchmarks.FastReflection_Invoker": 7.662784556547801,
+    "MemberAccessBenchmarks.FastReflection_SpanInvoker": 7.826456427574158,
+    "MemberAccessBenchmarks.TryParse_ObjectArray": 26.35594109694163,
+    "MemberAccessBenchmarks.TryParse_Ref": 10.004450380802155,
+    "MemberAccessBenchmarks.TypeAccessor_ByName": 21.929293870925903,
+    "MemberAccessBenchmarks.TypeAccessor_ByOrdinal": 10.285223523775736
+  }
+}
