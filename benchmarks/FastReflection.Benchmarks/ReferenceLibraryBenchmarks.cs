@@ -1,5 +1,6 @@
 using System.Reflection;
 using BenchmarkDotNet.Attributes;
+using FastReflection.XmlDocs;
 #if NET8_0_OR_GREATER
 using DotNext.Reflection;
 #endif
@@ -25,6 +26,9 @@ public class ReferenceLibraryBenchmarks
     private FastReflection.TypeAccessor _frAccessor = null!;
     private Func<object, object> _frConverter = null!;
     private readonly object[] _invokeArgs = { 2, 3 };
+    // XmlDocs rows (#37): summary read on a documented member — each library's per-assembly
+    // doc cache keeps the lookup hot after the first call. Report-only.
+    private readonly MemberInfo _docsMember = typeof(FastReflection.TypeAccessor);
 #if NET8_0_OR_GREATER
     private DynamicInvoker _dotNextInvoker = null!;
     private Func<Target, int, int, int> _dotNextUnreflect = null!;
@@ -95,6 +99,12 @@ public class ReferenceLibraryBenchmarks
                 sum += reader.GetInt32(0);
         return sum;
     }
+
+    [Benchmark]
+    public object Namotion_GetXmlDocsSummary() => Namotion.Reflection.XmlDocsExtensions.GetXmlDocsSummary(_docsMember);
+
+    [Benchmark]
+    public object FastReflection_GetXmlDocsSummary() => _docsMember.GetXmlDocsSummary();
 
 #if NET8_0_OR_GREATER
     [Benchmark]

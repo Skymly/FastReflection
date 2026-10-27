@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net472 test leg consumes the satellite's net462 build, net6.0 consumes netstandard2.0 -->
+    <TargetFrameworks>net472;net6.0;net8.0;net10.0</TargetFrameworks>
+    <!-- Test hosts roll forward to a newer runtime when the exact one is not installed -->
+    <RollForward>LatestMajor</RollForward>
+    <IsPackable>false</IsPackable>
+    <!-- The reads under test resolve the test assembly's own generated documentation file
+         beside the test dll; only fixture types carry docs, so CS1591 stays quiet. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FastReflection.XmlDocs\FastReflection.XmlDocs.csproj" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <!-- Build-time only: lets net472 compile on machines without the targeting pack (CI) -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
+    <!-- Options-seam fixture: an XML docs file read through XmlDocsOptions.PathToXmlFile -->
+    <Content Include="Fixture.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

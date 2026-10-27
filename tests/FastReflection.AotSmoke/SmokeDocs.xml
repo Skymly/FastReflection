@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<doc>
+  <assembly>
+    <name>FastReflection.AotSmoke</name>
+  </assembly>
+  <members>
+    <member name="T:FastReflection.AotSmoke.SmokePoco">
+      <summary>Smoke docs summary.</summary>
+    </member>
+    <member name="M:FastReflection.AotSmoke.SmokePoco.Add(System.Int32,System.Int32)">
+      <param name="a">Left operand.</param>
+      <returns>Sum.</returns>
+    </member>
+  </members>
+</doc>
