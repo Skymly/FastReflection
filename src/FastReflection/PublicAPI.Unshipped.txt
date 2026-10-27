@@ -6,3 +6,26 @@ FastReflection.Member.GetAttribute<T>(bool inherit = true) -> T?
 FastReflection.OrdinalAttribute
 FastReflection.OrdinalAttribute.OrdinalAttribute(int value) -> void
 FastReflection.OrdinalAttribute.Value.get -> int
+abstract FastReflection.ObjectAccessor.CreateNew(object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs = null) -> object!
+abstract FastReflection.ObjectAccessor.GetMemberNames() -> System.Collections.Generic.IReadOnlyList<string!>!
+abstract FastReflection.ObjectAccessor.GetValue(string! name, params object?[]? index) -> object?
+abstract FastReflection.ObjectAccessor.Invoke(string! name, object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, System.Type![]? typeArguments) -> object?
+abstract FastReflection.ObjectAccessor.Invoke(string! name, params object?[]? args) -> object?
+abstract FastReflection.ObjectAccessor.SetValue(string! name, object? value, params object?[]? index) -> void
+abstract FastReflection.ObjectAccessor.TryCreateNew(object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, out object? result) -> bool
+abstract FastReflection.ObjectAccessor.TryGetValue(string! name, object?[]? index, out object? value) -> bool
+abstract FastReflection.ObjectAccessor.TryInvoke(string! name, object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, System.Type![]? typeArguments, out object? result) -> bool
+abstract FastReflection.ObjectAccessor.TryInvoke(string! name, object?[]? args, out object? result) -> bool
+abstract FastReflection.ObjectAccessor.TrySetValue(string! name, object? value, object?[]? index) -> bool
+abstract FastReflection.TypeAccessor.CreateNew(object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs = null) -> object!
+abstract FastReflection.TypeAccessor.GetMemberNames() -> System.Collections.Generic.IReadOnlyList<string!>!
+abstract FastReflection.TypeAccessor.GetValue(object? target, string! name, params object?[]? index) -> object?
+abstract FastReflection.TypeAccessor.Invoke(object? target, string! name, object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, System.Type![]? typeArguments) -> object?
+abstract FastReflection.TypeAccessor.Invoke(object? target, string! name, params object?[]? args) -> object?
+abstract FastReflection.TypeAccessor.SetValue(object? target, string! name, object? value, params object?[]? index) -> void
+abstract FastReflection.TypeAccessor.TryCreateNew(object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, out object? result) -> bool
+abstract FastReflection.TypeAccessor.TryGetValue(object? target, string! name, object?[]? index, out object? value) -> bool
+abstract FastReflection.TypeAccessor.TryInvoke(object? target, string! name, object?[]? args, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? namedArgs, System.Type![]? typeArguments, out object? result) -> bool
+abstract FastReflection.TypeAccessor.TryInvoke(object? target, string! name, object?[]? args, out object? result) -> bool
+abstract FastReflection.TypeAccessor.TrySetValue(object? target, string! name, object? value, object?[]? index) -> bool
+static FastReflection.ReflectionExtensions.CreateConverter(System.Type! sourceType, System.Type! targetType) -> System.Func<object?, object?>!

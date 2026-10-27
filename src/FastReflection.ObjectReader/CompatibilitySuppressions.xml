@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!-- https://learn.microsoft.com/dotnet/fundamentals/package-validation/diagnostic-ids -->
+<!-- Intentional per-TFM differences (docs/specs/1.0-quality-gates.md):
+     ObjectReader derives from DbDataReader. On net8.0/net10.0 the BCL base class
+     implements IAsyncDisposable (DbDataReader.DisposeAsync); on net462/netstandard2.0
+     the BCL surface predates it. Like the core's _Attribute COM suppression, this is
+     a runtime-provided difference, not a surface decision by this package. -->
+<Suppressions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Suppression>
+    <DiagnosticId>CP0008</DiagnosticId>
+    <Target>T:FastReflection.ObjectReader.ObjectReader</Target>
+    <Left>lib/netstandard2.0/FastReflection.ObjectReader.dll</Left>
+    <Right>lib/net8.0/FastReflection.ObjectReader.dll</Right>
+  </Suppression>
+</Suppressions>

@@ -1,5 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using FastReflection.XmlDocs;
+using FrObjectReader = FastReflection.ObjectReader.ObjectReader;
 
 namespace FastReflection.AotSmoke
 {
@@ -24,8 +26,11 @@ namespace FastReflection.AotSmoke
                 ("getter-fallback", GetterFallback),
                 ("invoker-fallback", InvokerFallback),
                 ("span-invoker-fallback", SpanInvokerFallback),
+                ("bound-call-fallback", BoundCallFallback),
                 ("factory-fallback", FactoryFallback),
                 ("ref-typed-invoker-not-supported", RefTypedInvokerNotSupported),
+                ("object-reader-fallback", ObjectReaderFallback),
+                ("xml-docs-fallback", XmlDocsFallback),
             };
 
             for (var i = 0; i < scenarios.Length; i++)
@@ -108,6 +113,23 @@ namespace FastReflection.AotSmoke
             Equal(9, add(poco, new object?[] { 4, 5 }.AsSpan()), "span Add(4, 5)");
         }
 
+        // A bound call resolving and completing through reflection completion (#35).
+        private static void BoundCallFallback()
+        {
+            var accessor = TypeAccessor.Create(PocoType);
+            var poco = new SmokePoco();
+
+            Equal(9, accessor.Invoke(poco, nameof(SmokePoco.Add), new object?[] { 4, 5 }), "bound Add(4, 5)");
+            Equal(6, accessor.Invoke(poco, nameof(SmokePoco.Twice), new object?[] { 3 }), "bound static Twice(3)");
+            Equal("initial", accessor.GetValue(poco, nameof(SmokePoco.Name)), "bound get Name");
+            accessor.SetValue(poco, nameof(SmokePoco.Count), 7);
+            Equal(7, poco.Count, "bound set Count");
+
+            if (accessor.CreateNew(Array.Empty<object?>()) is not SmokePoco fresh)
+                throw new InvalidOperationException("bound CreateNew did not produce a SmokePoco");
+            Equal("initial", fresh.Name, "bound CreateNew member state");
+        }
+
         private static void FactoryFallback()
         {
             if (PocoType.CreateFactory()() is not SmokePoco poco)
@@ -115,6 +137,14 @@ namespace FastReflection.AotSmoke
             Equal("initial", poco.Name, "factory member state");
         }
 
+        // The scenario calls the one RequiresDynamicCode public member on purpose — the
+        // analyzer warnings here are the #9 contract reporting itself; the run asserts
+        // the matching runtime NotSupportedException.
+        private const string DeliberateRdcCallJustification =
+            "Deliberate RequiresDynamicCode call — the scenario proves the runtime NotSupportedException contract.";
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = DeliberateRdcCallJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = DeliberateRdcCallJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = DeliberateRdcCallJustification)]
         private static void RefTypedInvokerNotSupported()
         {
             var method = PocoType.GetMethod(nameof(SmokePoco.Increment))!;
@@ -127,6 +157,37 @@ namespace FastReflection.AotSmoke
             {
                 Check(e.Message.Contains("dynamic code"), $"unexpected message: {e.Message}");
             }
+        }
+
+        // The ObjectReader satellite under no dynamic code (#36): column binding and reads
+        // complete through the same reflection-completion path as the core accessor.
+        private static void ObjectReaderFallback()
+        {
+            var rows = new List<SmokePoco>
+            {
+                new() { Name = "a", Count = 1 },
+                new() { Name = "b", Count = 2 },
+            };
+            using var reader = FrObjectReader.Create(rows, nameof(SmokePoco.Name), nameof(SmokePoco.Count));
+            Equal(2, reader.FieldCount, "reader field count");
+            Check(reader.Read(), "reader first row");
+            Equal("a", reader.GetString(0), "reader Name");
+            Equal(1, reader.GetInt32(1), "reader Count");
+            Check(reader.Read(), "reader second row");
+            Check(!reader.Read(), "reader exhausted");
+        }
+
+        // The XmlDocs satellite under no dynamic code (#37): the read path — file resolution,
+        // XML parse, member-name lookup, text flatten — is file IO plus BCL metadata only.
+        // PathToXmlFile is used because PublishAot leaves Assembly.Location empty.
+        private static void XmlDocsFallback()
+        {
+            var options = new XmlDocsOptions { PathToXmlFile = Path.Combine(AppContext.BaseDirectory, "SmokeDocs.xml") };
+            Equal("Smoke docs summary.", typeof(SmokePoco).GetXmlDocsSummary(options), "type summary");
+            var element = PocoType.GetMethod(nameof(SmokePoco.Add))!.GetXmlDocsElement(options);
+            Check(element?.Element("param")?.Attribute("name")?.Value == "a", "param element missing");
+            var param = PocoType.GetMethod(nameof(SmokePoco.Add))!.GetParameters()[0];
+            Equal("Left operand.", param.GetXmlDocs(options), "param doc");
         }
 
         private delegate void IncrementRef(SmokePoco target, ref Ref<int> value);

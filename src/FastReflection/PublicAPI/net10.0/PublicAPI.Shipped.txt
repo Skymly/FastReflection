@@ -1,0 +1,7 @@
+#nullable enable
+FastReflection.FastSpanConstructorInvoker
+FastReflection.FastSpanInvoker
+static FastReflection.ReflectionExtensions.CreateSpanInvoker(this System.Reflection.ConstructorInfo! ctor) -> FastReflection.FastSpanConstructorInvoker!
+static FastReflection.ReflectionExtensions.CreateSpanInvoker(this System.Reflection.MethodInfo! method) -> FastReflection.FastSpanInvoker!
+virtual FastReflection.FastSpanConstructorInvoker.Invoke(System.Span<object?> args) -> object?
+virtual FastReflection.FastSpanInvoker.Invoke(object? target, System.Span<object?> args) -> object?

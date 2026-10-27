@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>FastReflection.XmlDocs</AssemblyName>
+    <RootNamespace>FastReflection.XmlDocs</RootNamespace>
+    <PackageId>Skymly.FastReflection.XmlDocs</PackageId>
+    <Description>XML documentation file reads for reflection objects — summary, remarks, tag, element and parameter docs on MemberInfo/Type/ParameterInfo/Assembly. Satellite of Skymly.FastReflection.</Description>
+    <PackageTags>reflection;xml-docs;documentation</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" Visible="false" />
+    <!-- Public API only — the core grants this satellite no InternalsVisibleTo (ADR-0002/ADR-0003). -->
+    <ProjectReference Include="..\FastReflection\FastReflection.csproj" />
+  </ItemGroup>
+
+</Project>

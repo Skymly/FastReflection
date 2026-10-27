@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<doc>
+  <assembly>
+    <name>FastReflection.XmlDocs.Tests</name>
+  </assembly>
+  <members>
+    <member name="T:FastReflection.XmlDocs.Tests.Person">
+      <summary>Fixture file summary.</summary>
+      <remarks>Fixture file remarks.</remarks>
+    </member>
+    <member name="M:FastReflection.XmlDocs.Tests.Person.Combine(System.Int32,System.String)">
+      <param name="a">Fixture param text.</param>
+      <returns>Fixture return text.</returns>
+    </member>
+    <member name="F:FastReflection.XmlDocs.Tests.Person.Age">
+      <summary>Fixture age summary.</summary>
+    </member>
+  </members>
+</doc>

@@ -1,4 +1,6 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using FastReflection.Binding;
 using FastReflection.Emit;
 
 namespace FastReflection
@@ -171,7 +173,12 @@ namespace FastReflection
         /// <exception cref="ArgumentNullException"><paramref name="method"/> is null.</exception>
         /// <exception cref="ArgumentException">The delegate does not match, or <see cref="Ref{T}"/> is passed by value, or the method or its declaring type is an open generic.</exception>
         /// <exception cref="NotSupportedException">Binding needs dynamic code and it is unavailable.</exception>
-        public static TDelegate CreateInvoker<TDelegate>(this MethodInfo method) where TDelegate : Delegate
+        /// <remarks>
+        /// Callers binding a public exact signature can use <see cref="Unreflect{TDelegate}(MethodInfo)"/>,
+        /// which carries no dynamic-code requirement.
+        /// </remarks>
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        public static TDelegate CreateInvoker<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TDelegate>(this MethodInfo method) where TDelegate : Delegate
             => AccessorEmitter.CreateTypedInvoker<TDelegate>(method);
 
         /// <summary>An access over a constructor, including a non-public one: <c>args => instance</c>.</summary>
@@ -203,8 +210,32 @@ namespace FastReflection
         /// <exception cref="ArgumentNullException"><paramref name="type"/> is null.</exception>
         /// <exception cref="ArgumentException">The type is abstract or an open generic, or it has no parameterless constructor.</exception>
         /// <remarks>A constructor exception propagates unwrapped through the returned factory.</remarks>
-        public static Func<object?> CreateFactory(this Type type, bool nonPublic = false)
+        public static Func<object?> CreateFactory(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            this Type type, bool nonPublic = false)
             => AccessorEmitter.CreateFactory(type, nonPublic);
+
+        /// <summary>
+        /// A bounded converter between two runtime-known types — the sanctioned bound-call conversion
+        /// set plus spec explicit numeric conversions: identity, reference casts and unboxing in either
+        /// direction, every spec numeric conversion (widening and narrowing, <see langword="char"/>
+        /// included), <see cref="Nullable{T}"/> lift and unlift, and enum↔underlying.
+        /// User-defined <c>op_Implicit</c>/<c>op_Explicit</c> methods are never consulted.
+        /// Not a name lookup and not a <see cref="Type"/> extension — a <c>Create</c>-shaped access.
+        /// </summary>
+        /// <param name="sourceType">The declared source type.</param>
+        /// <param name="targetType">The target type.</param>
+        /// <returns>The converter; a boxed value in, a boxed value out.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="sourceType"/> or <paramref name="targetType"/> is null.</exception>
+        /// <exception cref="InvalidCastException">No sanctioned conversion exists between the two types — at <c>Create</c> time — or, on the returned converter, a value cannot be converted.</exception>
+        public static Func<object?, object?> CreateConverter(Type sourceType, Type targetType)
+        {
+            if (sourceType == null) throw new ArgumentNullException(nameof(sourceType));
+            if (targetType == null) throw new ArgumentNullException(nameof(targetType));
+            if (!BoundConversion.CanCreateConverter(sourceType, targetType))
+                throw new InvalidCastException($"No sanctioned conversion exists from '{sourceType}' to '{targetType}'.");
+            return value => BoundConversion.ConvertExplicit(value, sourceType, targetType);
+        }
 
 #if NET8_0_OR_GREATER
         /// <summary>

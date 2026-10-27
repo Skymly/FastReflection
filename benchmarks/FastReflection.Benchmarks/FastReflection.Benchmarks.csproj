@@ -2,14 +2,36 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFrameworks>net472;net8.0</TargetFrameworks>
+    <!-- net10.0 has no baseline.json section yet — its rows are reported only until the
+         next deliberate baseline refresh (Build.cs CheckBenchmarkGate). -->
+    <TargetFrameworks>net472;net8.0;net10.0</TargetFrameworks>
     <IsPackable>false</IsPackable>
+    <!-- Not shipped and needs no friend access — skip signing so the unsigned FastMember
+         reference doesn't warn CS8002. -->
+    <SignAssembly>false</SignAssembly>
     <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
+    <ProjectReference Include="..\..\src\FastReflection.ObjectReader\FastReflection.ObjectReader.csproj" />
+    <ProjectReference Include="..\..\src\FastReflection.XmlDocs\FastReflection.XmlDocs.csproj" />
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="FastMember" Version="1.5.0" />
+    <!-- Dynamitey bound-call comparison rows (#35): its net40 + netstandard2.0 assets cover
+         every benchmark leg. Comparison rows are report-only — never part of baseline.json. -->
+    <PackageReference Include="Dynamitey" Version="3.0.3" />
+    <!-- Namotion.Reflection XmlDocs comparison rows (#37): its net462 + netstandard2.0 +
+         net8.0 assets cover every benchmark leg. Report-only, like every row in the class. -->
+    <PackageReference Include="Namotion.Reflection" Version="3.5.1" />
+    <!-- DotNext.Reflection ships net6.0-only assets (no netstandard2.0/2.1), so its
+         comparison rows exist on net6.0-compatible legs only — net8.0 today, net10.0
+         joins automatically; net472 has no compatible asset. -->
+    <PackageReference Include="DotNext.Reflection" Version="4.9.0" Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net6.0'))" />
+    <!-- Pin Immutable 8.0.0 on net472 so the Dynamitey/BenchmarkDotNet transitive graphs
+         resolve one version instead of warning MSB3277. -->
+    <PackageReference Include="System.Collections.Immutable" Version="8.0.0" Condition="'$(TargetFramework)' == 'net472'" />
+    <PackageReference Include="System.Reflection.Metadata" Version="8.0.0" Condition="'$(TargetFramework)' == 'net472'" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
   </ItemGroup>
 
