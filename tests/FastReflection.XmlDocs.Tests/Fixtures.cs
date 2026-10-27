@@ -5,6 +5,18 @@ namespace FastReflection.XmlDocs.Tests
     /// <example>Person example text.</example>
     public class Person
     {
+        /// <summary>Creates a person.</summary>
+        public Person()
+        {
+        }
+
+        /// <summary>Raised on rename.</summary>
+        public event EventHandler? Renamed
+        {
+            add { }
+            remove { }
+        }
+
         /// <summary>Name summary with <see cref="Person"/> inline.</summary>
         public string? Name { get; set; }
 

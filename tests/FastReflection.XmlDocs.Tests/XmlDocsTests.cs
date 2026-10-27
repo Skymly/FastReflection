@@ -52,6 +52,20 @@ namespace FastReflection.XmlDocs.Tests
         }
 
         [Fact]
+        public void Summary_OnConstructor_ReadsCtorEntry()
+        {
+            var ctor = typeof(Person).GetConstructor(Type.EmptyTypes)!;
+            Assert.Equal("Creates a person.", ctor.GetXmlDocsSummary());
+        }
+
+        [Fact]
+        public void Summary_OnEvent_ReadsEventEntry()
+        {
+            var renamed = typeof(Person).GetEvent(nameof(Person.Renamed))!;
+            Assert.Equal("Raised on rename.", renamed.GetXmlDocsSummary());
+        }
+
+        [Fact]
         public void Summary_MultiLine_CollapsesIndent()
         {
             var method = typeof(Person).GetMethod(nameof(Person.Sum))!;
@@ -162,6 +176,14 @@ namespace FastReflection.XmlDocs.Tests
             var options = new XmlDocsOptions { PathToXmlFile = typeof(Person).Assembly.Location };
             Assert.Equal(string.Empty, typeof(Person).GetXmlDocsSummary(options));
             Assert.Null(typeof(Person).GetXmlDocsElement(options));
+        }
+
+        [Fact]
+        public void Summary_OnArrayType_IsAMiss()
+        {
+            // No `T:` entry exists for element types — the read must not alias System.Int32's docs.
+            Assert.Equal(string.Empty, typeof(int[]).GetXmlDocsSummary());
+            Assert.Null(typeof(int[]).GetXmlDocsElement());
         }
 
         // Options: PathToXmlFile redirects the per-assembly resolution to the fixture file.

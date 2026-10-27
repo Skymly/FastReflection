@@ -91,14 +91,32 @@ namespace FastReflection.XmlDocs
                 if (!Directory.Exists(packageDirectory))
                     return null;
 
+                // Package layout is <package>/<version>/.../<file> — take the newest version
+                // directory, not the lexical max (ordinal sorts "9.x" after "10.x").
                 return Directory.GetFiles(packageDirectory, fileName, SearchOption.AllDirectories)
-                    .OrderByDescending(f => f, StringComparer.OrdinalIgnoreCase)
+                    .OrderByDescending(path => PackageVersion(path, packageDirectory))
                     .FirstOrDefault();
             }
             catch
             {
                 return null;
             }
+        }
+
+        // The segment after <package>/ is the version directory. NuGet versions are SemVer —
+        // a leading numeric prefix parses as Version; anything else (or a prerelease tag)
+        // sorts below released versions.
+        private static Version PackageVersion(string path, string packageDirectory)
+        {
+            var separator = packageDirectory.Length;
+            var end = path.IndexOf(Path.DirectorySeparatorChar, separator + 1);
+            if (end < 0)
+                end = path.IndexOf(Path.AltDirectorySeparatorChar, separator + 1);
+            var segment = end < 0 ? path.Substring(separator + 1) : path.Substring(separator + 1, end - separator - 1);
+            var length = 0;
+            while (length < segment.Length && (char.IsDigit(segment[length]) || segment[length] == '.'))
+                length++;
+            return Version.TryParse(segment.Substring(0, length), out var version) ? version : new Version(0, 0);
         }
 
         /// <summary>
@@ -147,7 +165,7 @@ namespace FastReflection.XmlDocs
             var resolved = (MethodBase)OnDefinition(method);
             var sb = new StringBuilder("M:")
                 .Append(GetDefinitionName(resolved.DeclaringType!)).Append('.')
-                .Append(resolved.IsConstructor ? (resolved.IsStatic ? "#cctor" : "#ctor") : resolved.Name);
+                .Append(resolved is ConstructorInfo ? (resolved.IsStatic ? "#cctor" : "#ctor") : resolved.Name);
             var signature = GetSignature(resolved.GetParameters());
             if (signature is not null)
                 sb.Append('(').Append(signature).Append(')');
@@ -193,18 +211,15 @@ namespace FastReflection.XmlDocs
         }
 
         // A type name in declaring-type position: namespace.name with arity kept (`Ns.Gen`1),
-        // nested '+' flattened to '.', constructed arguments stripped.
+        // nested '+' flattened to '.', constructed arguments stripped. Element types
+        // (array/pointer/byref) keep their FullName suffix — a `T:` entry never matches them,
+        // so the read is a miss rather than an alias of the element type's docs.
         private static string GetDefinitionName(Type type)
         {
             if (type.IsGenericType && !type.IsGenericTypeDefinition)
                 type = type.GetGenericTypeDefinition();
 
-            var name = type.FullName ?? type.Name;
-            var bracket = name.IndexOf('[');
-            if (bracket >= 0)
-                name = name.Substring(0, bracket);
-
-            return name.Replace('+', '.');
+            return (type.FullName ?? type.Name).Replace('+', '.');
         }
 
         // A type name in signature position: `i for type parameters, ``i for method parameters,
@@ -360,7 +375,9 @@ namespace FastReflection.XmlDocs
 
         private sealed class AssemblyDocs
         {
-            internal readonly ConcurrentDictionary<string, DocsSlot> Files = new(StringComparer.OrdinalIgnoreCase);
+            // Ordinal — paths are case-sensitive on Linux, and duplicate same-file entries
+            // under differing casing are harmless (the same file parses once more).
+            internal readonly ConcurrentDictionary<string, DocsSlot> Files = new(StringComparer.Ordinal);
         }
     }
 
