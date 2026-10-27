@@ -46,8 +46,7 @@ namespace FastReflection.Binding
             internal Type? InstanceType;      // null when the member is static or a constructor
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2072",
-            Justification = "A parameter type is always creatable for its default value; the #9 contract is finalized in #38.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = EmitHelper.MaterializedSignatureJustification)]
         private static ParamView[] MethodParams(MethodBase method, Type[]? gps, Type[]? typeArgs)
         {
             var ps = method.GetParameters();
@@ -195,7 +194,9 @@ namespace FastReflection.Binding
             return MakeCall(fit, null);
         }
 
-        private static BoundCall DefaultValueCall(Type type)
+        private static BoundCall DefaultValueCall(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             var factory = AccessorEmitter.CreateFactory(type, nonPublic: false);
             return new BoundCall(new BoundPlan(Array.Empty<ArgSlot>()), null, (t, n) => factory());
@@ -450,10 +451,8 @@ namespace FastReflection.Binding
         }
 
         /// <summary>Substitutes the method's generic parameters with explicit type arguments inside a parameter or constraint type.</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2055",
-            Justification = "Explicit generic type arguments are part of the bound-call contract; their requirements are preserved by the #9 annotation union, finalized in #38.")]
-        [UnconditionalSuppressMessage("AOT", "IL3050",
-            Justification = "Explicit generic type arguments are part of the bound-call contract; their requirements are preserved by the #9 annotation union, finalized in #38.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2055", Justification = EmitHelper.GenericInstantiationJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitHelper.GenericInstantiationJustification)]
         private static Type Substitute(Type type, Type[] gps, Type[] typeArgs)
         {
             if (type.IsGenericParameter)
@@ -478,7 +477,7 @@ namespace FastReflection.Binding
 
         /// <summary>Spec §12.6.4 constraint check on explicit type arguments: reference/value-type/default-ctor flags plus declared constraint types.</summary>
         [UnconditionalSuppressMessage("Trimming", "IL2065",
-            Justification = "The default-constructor constraint check inspects the caller-supplied type argument; its requirements are covered by the #9 annotation union, finalized in #38.")]
+            Justification = "The default-constructor constraint check inspects the caller's explicit type argument; its constructors are outside the TypeAccessor.Create union, and a trimmed one reads as no constructor — the correct verdict.")]
         private static bool CheckConstraints(Type[] gps, Type[] typeArgs)
         {
             for (var i = 0; i < gps.Length; i++)
@@ -524,10 +523,8 @@ namespace FastReflection.Binding
         // ============================== bound-call materialization ==============================
 
         /// <summary>Builds the adapted invoker for the winning fit: the resolved member closed with any explicit type arguments, running through the same emit/reflection machinery.</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2060",
-            Justification = "Explicit generic type arguments are part of the bound-call contract; their requirements are preserved by the #9 annotation union, finalized in #38.")]
-        [UnconditionalSuppressMessage("AOT", "IL3050",
-            Justification = "Explicit generic type arguments are part of the bound-call contract; their requirements are preserved by the #9 annotation union, finalized in #38.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2060", Justification = EmitHelper.GenericInstantiationJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitHelper.GenericInstantiationJustification)]
         private static BoundCall MakeCall(Fit fit, Type[]? typeArgs)
         {
             var c = fit.Candidate;

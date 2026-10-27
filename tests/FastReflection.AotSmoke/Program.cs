@@ -137,6 +137,14 @@ namespace FastReflection.AotSmoke
             Equal("initial", poco.Name, "factory member state");
         }
 
+        // The scenario calls the one RequiresDynamicCode public member on purpose — the
+        // analyzer warnings here are the #9 contract reporting itself; the run asserts
+        // the matching runtime NotSupportedException.
+        private const string DeliberateRdcCallJustification =
+            "Deliberate RequiresDynamicCode call — the scenario proves the runtime NotSupportedException contract.";
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = DeliberateRdcCallJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = DeliberateRdcCallJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2111", Justification = DeliberateRdcCallJustification)]
         private static void RefTypedInvokerNotSupported()
         {
             var method = PocoType.GetMethod(nameof(SmokePoco.Increment))!;

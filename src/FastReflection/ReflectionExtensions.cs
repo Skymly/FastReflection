@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using FastReflection.Binding;
 using FastReflection.Emit;
@@ -172,7 +173,12 @@ namespace FastReflection
         /// <exception cref="ArgumentNullException"><paramref name="method"/> is null.</exception>
         /// <exception cref="ArgumentException">The delegate does not match, or <see cref="Ref{T}"/> is passed by value, or the method or its declaring type is an open generic.</exception>
         /// <exception cref="NotSupportedException">Binding needs dynamic code and it is unavailable.</exception>
-        public static TDelegate CreateInvoker<TDelegate>(this MethodInfo method) where TDelegate : Delegate
+        /// <remarks>
+        /// Callers binding a public exact signature can use <see cref="Unreflect{TDelegate}(MethodInfo)"/>,
+        /// which carries no dynamic-code requirement.
+        /// </remarks>
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        public static TDelegate CreateInvoker<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TDelegate>(this MethodInfo method) where TDelegate : Delegate
             => AccessorEmitter.CreateTypedInvoker<TDelegate>(method);
 
         /// <summary>An access over a constructor, including a non-public one: <c>args => instance</c>.</summary>
@@ -204,7 +210,9 @@ namespace FastReflection
         /// <exception cref="ArgumentNullException"><paramref name="type"/> is null.</exception>
         /// <exception cref="ArgumentException">The type is abstract or an open generic, or it has no parameterless constructor.</exception>
         /// <remarks>A constructor exception propagates unwrapped through the returned factory.</remarks>
-        public static Func<object?> CreateFactory(this Type type, bool nonPublic = false)
+        public static Func<object?> CreateFactory(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            this Type type, bool nonPublic = false)
             => AccessorEmitter.CreateFactory(type, nonPublic);
 
         /// <summary>

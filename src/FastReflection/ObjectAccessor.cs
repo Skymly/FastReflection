@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace FastReflection
@@ -23,11 +24,13 @@ namespace FastReflection
         public abstract object? Target { get; }
 
         /// <summary>Binds <paramref name="target"/> to the type accessor of its runtime type. <paramref name="allowNonPublicAccessors"/> selects the non-public type accessor.</summary>
-        /// <param name="target">The object to wrap.</param>
+        /// <param name="target">The object to wrap. Its runtime type must keep the same member set <see cref="TypeAccessor.Create"/> requires; the requirement is contractual because an <see cref="object"/> parameter cannot carry it.</param>
         /// <param name="allowNonPublicAccessors">True for the non-public type accessor.</param>
         /// <returns>The bound object accessor.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="target"/> is null.</exception>
         /// <exception cref="ArgumentException">The target's runtime type is an open generic.</exception>
+        [UnconditionalSuppressMessage("Trimming", "IL2072",
+            Justification = "The caller's target runtime type must keep the TypeAccessor.Create discovery union; DynamicallyAccessedMembers cannot be applied to an object parameter, so the requirement is contractual (IL2098).")]
         public static ObjectAccessor Create(object target, bool allowNonPublicAccessors = false)
         {
             if (target == null) throw new ArgumentNullException(nameof(target));
