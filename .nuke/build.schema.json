@@ -28,6 +28,7 @@
         "Benchmark",
         "Clean",
         "Compile",
+        "Coverage",
         "Pack",
         "Publish",
         "Restore",
@@ -125,6 +126,11 @@
             "Debug",
             "Release"
           ]
+        },
+        "CoverageThreshold": {
+          "type": "number",
+          "description": "Minimum line coverage per shipped assembly, as a fraction - default 0.90",
+          "format": "double"
         },
         "NuGetApiKey": {
           "type": "string",

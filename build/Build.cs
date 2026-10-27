@@ -15,8 +15,11 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     GitHubActionsImage.UbuntuLatest,
     OnPushBranches = new[] { "main" },
     OnPullRequestBranches = new[] { "main" },
-    InvokedTargets = new[] { nameof(Test) },
-    EnableGitHubToken = true)]
+    InvokedTargets = new[] { nameof(Test), nameof(Coverage) },
+    EnableGitHubToken = true,
+    // Coverage runs on both runners but only one artifact may be uploaded; windows-latest is
+    // the primary (full-matrix) leg. !cancelled() keeps the report on gate-failure runs.
+    PublishCondition = "runner.os == 'Windows' && !cancelled()")]
 // Dedicated workflow: benchmark legs are slow, so the gate keeps its own windows-latest
 // job off the ci runners. cancelled()==false uploads the artifacts even when the gate
 // fails — the run's reports are the regression evidence. (Written without a leading `!`:
@@ -45,6 +48,11 @@ class Build : NukeBuild
     [Parameter("NuGet API key")]
     readonly string NuGetApiKey = null!;
 
+    // The 1.0 quality gate (docs/specs/1.0-quality-gates.md); a maintainer override tunes the
+    // number without reopening the spec.
+    [Parameter("Minimum line coverage per shipped assembly, as a fraction - default 0.90")]
+    readonly double CoverageThreshold = 0.90;
+
     // The 1.0 benchmark gate (docs/specs/1.0-quality-gates.md); the tolerance covers
     // hosted-runner jitter — a maintainer override tunes it without reopening the spec.
     [Parameter("Benchmark regression tolerance vs baseline, as a fraction - default 0.25")]
@@ -68,6 +76,8 @@ class Build : NukeBuild
     IReadOnlyCollection<AbsolutePath> TestProjects => RootDirectory.GlobFiles("tests/*/*.Tests.csproj");
     AbsolutePath SmokeProject => RootDirectory / "tests" / "FastReflection.AotSmoke" / "FastReflection.AotSmoke.csproj";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
+    AbsolutePath CoverageRunSettings => RootDirectory / "tests" / "FastReflection.Tests" / "coverage.runsettings";
+    AbsolutePath CoverageDirectory => ArtifactsDirectory / "coverage";
     AbsolutePath BenchmarkProject => RootDirectory / "benchmarks" / "FastReflection.Benchmarks" / "FastReflection.Benchmarks.csproj";
     AbsolutePath BenchmarkDirectory => ArtifactsDirectory / "benchmarks";
     AbsolutePath BenchmarkBaselineFile => RootDirectory / "benchmarks" / "baseline.json";
@@ -97,6 +107,11 @@ class Build : NukeBuild
     // .NET Framework test legs (net472, net48, ...) only run on Windows; modern legs (net6.0+) run everywhere
     static bool IsNetFrameworkTfm(string tfm) => tfm.StartsWith("net") && tfm[3..].All(char.IsDigit);
 
+    // Modern legs look like net6.0/net8.0/net10.0: "net" + a version with a dot (netstandard2.0
+    // and netcoreapp3.1 don't qualify, and neither is a test leg anyway)
+    static bool IsModernTfm(string tfm) =>
+        tfm.StartsWith("net") && char.IsDigit(tfm.ElementAtOrDefault(3)) && tfm.Contains('.');
+
     static IEnumerable<string> TargetFrameworksOf(AbsolutePath project)
         => XDocument.Load(project)
             .Descendants("TargetFrameworks").Single().Value
@@ -123,24 +138,100 @@ class Build : NukeBuild
             }
         });
 
+    // Coverage (docs/specs/1.0-quality-gates.md): coverlet.collector produces cobertura on the
+    // newest modern leg only — net8.0 today, net10.0 automatically once it joins the test
+    // matrix. coverlet.collector ignores its Threshold settings, so the per-assembly line gate
+    // is enforced by CheckCoverageThreshold on the produced report.
     Target Test => _ => _
         .DependsOn(Compile)
         .DependsOn(AotSmoke)
         .Executes(() =>
         {
+            // Clean first so a stale report can never satisfy the gate
+            CoverageDirectory.CreateOrCleanDirectory();
+
             foreach (var project in TestProjects.OrderBy(p => p.Name))
             {
                 var frameworks = TargetFrameworksOf(project)
-                    .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm));
+                    .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm))
+                    .ToList();
+                // Coverage collects on the newest modern leg of every test project — the
+                // satellites' shipped assemblies are only exercised by their own suites.
+                var coverageFramework = frameworks
+                    .Where(IsModernTfm)
+                    .MaxBy(tfm => Version.Parse(tfm[3..]));
 
                 DotNetTest(s => s
                     .SetProjectFile(project)
                     .SetConfiguration(Configuration)
                     .EnableNoBuild()
-                    .CombineWith(frameworks, (settings, framework) => settings
-                        .SetFramework(framework)));
+                    .CombineWith(frameworks, (settings, framework) =>
+                    {
+                        settings = settings.SetFramework(framework);
+                        if (framework == coverageFramework)
+                        {
+                            settings = settings
+                                .SetDataCollector("XPlat Code Coverage")
+                                .SetSettingsFile(CoverageRunSettings)
+                                .SetResultsDirectory(CoverageDirectory);
+                        }
+
+                        return settings;
+                    }));
             }
+
+            CheckCoverageThreshold();
         });
+
+    // Union coverage per shipped assembly across every cobertura report under
+    // CoverageDirectory: a line counts when any test project's report covers it (hits > 0).
+    // Every src/* project must appear in the union — the spec gates each shipped assembly.
+    void CheckCoverageThreshold()
+    {
+        var reports = CoverageDirectory.GlobFiles("**/coverage.cobertura.xml").ToList();
+        Assert.True(reports.Count > 0, $"No cobertura report found under {CoverageDirectory}");
+
+        var packageLines = new Dictionary<string, Dictionary<(string File, int Number), bool>>(StringComparer.Ordinal);
+        foreach (var report in reports)
+        {
+            foreach (var package in XDocument.Load(report).Descendants("package"))
+            {
+                var name = package.Attribute("name")!.Value;
+                if (!packageLines.TryGetValue(name, out var lines))
+                    packageLines[name] = lines = new Dictionary<(string, int), bool>();
+
+                foreach (var line in package.Descendants("line"))
+                {
+                    var key = (line.Ancestors("class").First().Attribute("filename")!.Value,
+                               (int)line.Attribute("number")!);
+                    lines[key] = lines.TryGetValue(key, out var covered) && covered
+                                 || (int)line.Attribute("hits")! > 0;
+                }
+            }
+        }
+
+        var failures = new List<string>();
+        foreach (var shipped in RootDirectory.GlobFiles("src/*/*.csproj").Select(p => p.NameWithoutExtension))
+        {
+            if (!packageLines.TryGetValue(shipped, out var lines) || lines.Count == 0)
+            {
+                failures.Add($"{shipped}: no coverage recorded — a shipped assembly must appear in the cobertura union");
+                continue;
+            }
+
+            var lineRate = (double)lines.Values.Count(c => c) / lines.Count;
+            if (lineRate < CoverageThreshold)
+                failures.Add($"{shipped} line coverage {lineRate:P1} is below {CoverageThreshold:P0}");
+        }
+
+        Assert.True(failures.Count == 0, "Coverage gate failed:\n  " + string.Join("\n  ", failures));
+    }
+
+    // Artifact marker for the generated workflows: only the ci workflow invokes this target, so
+    // the coverage upload step never reaches publish.yml (the spec keeps publish.yml untouched).
+    Target Coverage => _ => _
+        .DependsOn(Test)
+        .Produces(CoverageDirectory);
 
     // Benchmark gate (docs/specs/1.0-quality-gates.md): every leg runs the suite under
     // --job short, then each entry in the committed baseline.json is compared against the

@@ -5,6 +5,7 @@
 - Build: `dotnet build FastReflection.slnx` (slnx format; `global.json` pins the 10.0.x SDK band, `rollForward: latestFeature`)
 - Test (all legs): `dotnet test tests/FastReflection.Tests/FastReflection.Tests.csproj`
 - Test single leg: append `-f net472`, `-f net6.0`, `-f net8.0` or `-f net10.0` (net472 leg consumes the `net462` library build, net6.0 the `netstandard2.0` build)
+- Coverage: the Nuke `Test`/`Coverage` targets (`./build.cmd Test Coverage`) collect cobertura on the newest modern leg of every `tests/*/*.Tests.csproj` into `artifacts/coverage/` and enforce ≥90% line coverage per shipped assembly on the union report (`--coverage-threshold` to override); collector config in `tests/FastReflection.Tests/coverage.runsettings`
 - Pack: `./build.cmd Pack` packs every `src/*/*.csproj` into `artifacts/` and gates ADR-0003 — every packed assembly strong-named, one public key token across all packages
 - Benchmarks: `dotnet run -c Release -p benchmarks/FastReflection.Benchmarks -- --job short`
 - Benchmark gate: `./build.cmd Benchmark` runs `--job short` per benchmark leg into `artifacts/benchmarks/<tfm>/` and fails when a gated row's mean, normalized by that run's anchor, is >25% slower than `benchmarks/baseline.json` (`--benchmark-tolerance` to override, `--benchmark-filter` for a glob subset, `--benchmark-skip-run` to compare/write against existing artifacts without re-measuring)
@@ -30,6 +31,7 @@
 - Struct member writes use `unbox` (managed pointer into the box) so writes persist — not `unbox.any`. See `docs/adr/0001-boxed-value-writes-update-the-box.md`.
 - Tests disable xunit parallelization assembly-wide because `FallbackTests` toggles the global `EmitHelper.ForceReflectionFallback` flag.
 - netstandard2.0 needs `System.Reflection.Emit.ILGeneration` + `System.Reflection.Emit.Lightweight` packages; net462/net8.0+ have them in-box.
+- `coverlet.collector` silently ignores `Threshold*` runsettings settings (thresholds only work in coverlet.msbuild); the 90% per-assembly gate is `CheckCoverageThreshold` in `build/Build.cs` union-merging every test project's cobertura report per shipped assembly.
 - Signing (ADR-0003): `FastReflection.snk` at the repo root signs every project via root `Directory.Build.props`; `AssemblyVersion` is package-major-only (computed from `$(Version)`), `FileVersion` is the full version. The core `InternalsVisibleTo` item carries `Key=` — regenerate that hex from the shipped dll's public key if the snk ever changes (it must not, post-publish). `sn -k`-equivalent keys need `CspParameters.KeyNumber=2` (AT_SIGNATURE) or the emitted public key won't match the blob.
 - No `Microsoft.SourceLink.GitHub` package — SourceLink ships in the .NET 8+ SDK (package deprecated; 8.0.0 pulls GHSA-23fw-v26w-5fgq / NU1902). `PublishRepositoryUrl` + `RepositoryUrl` are enough.
 - Per-TFM public API: shared `PublicAPI.*.txt` + `PublicAPI/<tfm>/` additions; net8.0 and net10.0 carry identical span-invoker additions (`NET8_0_OR_GREATER`). Package-validation suppressions live in `src/FastReflection/CompatibilitySuppressions.xml` incl. the CLR's automatic `_Attribute` COM interface on net462 (CP0008).
