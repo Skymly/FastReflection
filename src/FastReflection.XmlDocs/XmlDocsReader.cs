@@ -87,7 +87,9 @@ namespace FastReflection.XmlDocs
                 if (string.IsNullOrEmpty(root))
                     root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
 
-                var packageDirectory = Path.Combine(root, assemblyName.Name!);
+                // The global-packages cache lowercases every package id on disk — probe the
+                // lowercase path or the read misses on case-sensitive filesystems.
+                var packageDirectory = Path.Combine(root, assemblyName.Name!.ToLowerInvariant());
                 if (!Directory.Exists(packageDirectory))
                     return null;
 

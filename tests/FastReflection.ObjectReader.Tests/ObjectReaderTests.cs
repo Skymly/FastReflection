@@ -278,6 +278,66 @@ namespace FastReflection.ObjectReader.Tests
         }
 
         [Fact]
+        public void TypedGetters_RemainingTypes_ReadValues()
+        {
+            var guid = Guid.NewGuid();
+            var items = new[]
+            {
+                new Scalars { Byte = 0x7F, Char = 'x', Dec = 1.5m, Dbl = 2.5, Flt = 3.5f, G = guid, I16 = -12, I64 = long.MaxValue },
+            };
+            using var reader = ObjectReader.Create(items, "Byte", "Char", "Dec", "Dbl", "Flt", "G", "I16", "I64");
+
+            Assert.True(reader.Read());
+            Assert.Equal(0x7F, reader.GetByte(0));
+            Assert.Equal('x', reader.GetChar(1));
+            Assert.Equal(1.5m, reader.GetDecimal(2));
+            Assert.Equal(2.5, reader.GetDouble(3));
+            Assert.Equal(3.5f, reader.GetFloat(4));
+            Assert.Equal(guid, reader.GetGuid(5));
+            Assert.Equal((short)-12, reader.GetInt16(6));
+            Assert.Equal(long.MaxValue, reader.GetInt64(7));
+        }
+
+        [Fact]
+        public void GetBytes_ReadsSlicesAndRejectsNonByteColumns()
+        {
+            var items = new[] { new Scalars { Bytes = new byte[] { 1, 2, 3, 4, 5 }, Byte = 9 } };
+            using var reader = ObjectReader.Create(items, "Bytes", "Byte");
+
+            Assert.True(reader.Read());
+            Assert.Equal(5, reader.GetBytes(0, 0, null, 0, 0));
+
+            var buffer = new byte[3];
+            Assert.Equal(3, reader.GetBytes(0, 1, buffer, 0, 3));
+            Assert.Equal(new byte[] { 2, 3, 4 }, buffer);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => reader.GetBytes(0, 6, null, 0, 0));
+            Assert.Throws<InvalidCastException>(() => reader.GetBytes(1, 0, null, 0, 0));
+        }
+
+        [Fact]
+        public void GetChars_ReadsCharArrayAndStringAndRejectsOtherColumns()
+        {
+            var items = new[] { new Scalars { Chars = new[] { 'a', 'b', 'c', 'd' }, Str = "wxyz", Byte = 9 } };
+            using var reader = ObjectReader.Create(items, "Chars", "Str", "Byte");
+
+            Assert.True(reader.Read());
+            Assert.Equal(4, reader.GetChars(0, 0, null, 0, 0));
+
+            var slice = new char[2];
+            Assert.Equal(2, reader.GetChars(0, 1, slice, 0, 2));
+            Assert.Equal(new[] { 'b', 'c' }, slice);
+
+            Assert.Equal(4, reader.GetChars(1, 0, null, 0, 0));
+            var text = new char[4];
+            Assert.Equal(4, reader.GetChars(1, 0, text, 0, 4));
+            Assert.Equal("wxyz", new string(text));
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => reader.GetChars(0, 9, null, 0, 0));
+            Assert.Throws<InvalidCastException>(() => reader.GetChars(2, 0, null, 0, 0));
+        }
+
+        [Fact]
         public void Metadata_Statics()
         {
             using var reader = ObjectReader.Create(ThreePeople(), "Id");

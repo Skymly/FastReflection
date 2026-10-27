@@ -26,4 +26,21 @@ namespace FastReflection.ObjectReader.Tests
     {
         public string? School { get; set; }
     }
+
+    // One member per remaining DbDataReader typed-getter conversion target, plus the
+    // byte[]/char[]/string columns GetBytes and GetChars slice from.
+    public class Scalars
+    {
+        public byte Byte { get; set; }
+        public char Char { get; set; }
+        public decimal Dec { get; set; }
+        public double Dbl { get; set; }
+        public float Flt { get; set; }
+        public Guid G { get; set; }
+        public short I16 { get; set; }
+        public long I64 { get; set; }
+        public byte[]? Bytes { get; set; }
+        public char[]? Chars { get; set; }
+        public string? Str { get; set; }
+    }
 }

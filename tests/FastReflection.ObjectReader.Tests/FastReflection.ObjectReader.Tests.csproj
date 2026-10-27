@@ -11,6 +11,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection.ObjectReader\FastReflection.ObjectReader.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <!-- Coverage gate (#32): every *.Tests.csproj carries the collector — the Test target
+         collects on each project's newest modern leg and union-merges per shipped assembly -->
+    <PackageReference Include="coverlet.collector" Version="10.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <!-- Build-time only: lets net472 compile on machines without the targeting pack (CI) -->

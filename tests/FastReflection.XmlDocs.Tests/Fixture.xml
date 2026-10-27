@@ -9,8 +9,12 @@
       <remarks>Fixture file remarks.</remarks>
     </member>
     <member name="M:FastReflection.XmlDocs.Tests.Person.Combine(System.Int32,System.String)">
+      <summary>Uses <paramref name="a"/> with <see cref="M:FastReflection.XmlDocs.Tests.Person.Combine(System.Int32,System.String)"/> and <b>bold</b> and <see/> text.</summary>
       <param name="a">Fixture param text.</param>
       <returns>Fixture return text.</returns>
+    </member>
+    <member name="M:FastReflection.XmlDocs.Tests.Person.UndocumentedParam(System.Int32)">
+      <summary></summary>
     </member>
     <member name="F:FastReflection.XmlDocs.Tests.Person.Age">
       <summary>Fixture age summary.</summary>
