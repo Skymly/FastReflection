@@ -15,6 +15,16 @@ namespace FastReflection.ObjectReader
     /// </summary>
     public sealed class ObjectReader : DbDataReader
     {
+        // Mirrors the core's TypeAccessor.Create discovery union (internal there) — the
+        // element type is forwarded to that entry point. Keep in sync; the AotSmoke
+        // object-reader scenario is the parity check.
+        private const DynamicallyAccessedMemberTypes DiscoveryMemberTypes =
+            DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.NonPublicProperties
+            | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields
+            | DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods
+            | DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            | DynamicallyAccessedMemberTypes.Interfaces;
+
         private readonly struct Column
         {
             internal readonly string Name;
@@ -73,7 +83,7 @@ namespace FastReflection.ObjectReader
         /// <returns>The reader, positioned before the first row.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
         /// <exception cref="MissingMemberException">A supplied name is not a Member of <typeparamref name="T"/>'s public type accessor.</exception>
-        public static ObjectReader Create<T>(IEnumerable<T> source, params string[] members)
+        public static ObjectReader Create<[DynamicallyAccessedMembers(DiscoveryMemberTypes)] T>(IEnumerable<T> source, params string[] members)
             => Create(typeof(T), source, members);
 
         /// <summary>
@@ -88,8 +98,10 @@ namespace FastReflection.ObjectReader
         /// <exception cref="ArgumentNullException"><paramref name="elementType"/> or <paramref name="source"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="elementType"/> is an open generic.</exception>
         /// <exception cref="MissingMemberException">A supplied name is not a Member of <paramref name="elementType"/>'s public type accessor.</exception>
-        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "Column types are the Member.Type values of the caller-supplied element type's public members; they live as long as that member set, which the caller's TypeAccessor.Create contract already roots.")]
-        public static ObjectReader Create(Type elementType, IEnumerable source, params string[] members)
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = "Column types come from the member signatures of the caller-rooted element type — the union keeps each Type reachable but cannot transitively root a column type's own PublicProperties/PublicFields, so GetFieldType's BCL contract is over-promised for user-typed columns (inherent to any user-typed DbDataReader).")]
+        public static ObjectReader Create(
+            [DynamicallyAccessedMembers(DiscoveryMemberTypes)]
+            Type elementType, IEnumerable source, params string[] members)
         {
             if (elementType == null) throw new ArgumentNullException(nameof(elementType));
             if (source == null) throw new ArgumentNullException(nameof(source));

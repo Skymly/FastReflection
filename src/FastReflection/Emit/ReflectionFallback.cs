@@ -49,9 +49,9 @@ namespace FastReflection.Emit
         internal static object? New(ConstructorInfo ctor)
             => InvokeCore(ctor, null, checkTarget: false, null);
 
-        [UnconditionalSuppressMessage("Trimming", "IL2067",
-            Justification = "The constructor requirements of the caller-supplied type are part of the #9 contract, finalized in #38.")]
-        internal static object? New(Type type)
+        internal static object? New(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             try
             {
@@ -163,8 +163,7 @@ namespace FastReflection.Emit
         /// element type; a null by-ref slot to a default of the element type so the callee reads it.
         /// Returns the indices written back to the caller (ref and out only — never in).
         /// </summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2072",
-            Justification = "A by-ref element type is always creatable for its default value; the #9 contract is finalized in #38.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = EmitHelper.MaterializedSignatureJustification)]
         private static List<int>? ConvertArgs(ParameterInfo[] ps, object?[] args, object?[] converted)
         {
             List<int>? writeBack = null;
