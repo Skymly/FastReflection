@@ -39,6 +39,31 @@ namespace FastReflection.XmlDocs.Tests
         public int Sum(params int[] values) => values.Sum();
 
         public int Undocumented() => 0;
+
+        public int UndocumentedParam(int x) => x;
+    }
+
+    /// <summary>Converts summary.</summary>
+    public class Converts
+    {
+        /// <summary>Converts to an int.</summary>
+        public static implicit operator int(Converts c) => 0;
+
+        /// <summary>Reads a ref parameter.</summary>
+        /// <param name="a">The array.</param>
+        /// <param name="b">The ref value.</param>
+        public void Ref(int[] a, ref int b) => b = a.Length;
+
+        /// <summary>Reads a pointer parameter.</summary>
+        public unsafe void Ptr(int* p) => *p = 1;
+
+        /// <summary>Reads a two-dimensional array.</summary>
+        /// <param name="grid">The grid.</param>
+        public void Grid(int[,] grid) { }
+
+        /// <summary>Reads a two-argument constructed generic.</summary>
+        /// <param name="map">The map.</param>
+        public void Map(Dictionary<int, string> map) { }
     }
 
     /// <summary>Box summary.</summary>

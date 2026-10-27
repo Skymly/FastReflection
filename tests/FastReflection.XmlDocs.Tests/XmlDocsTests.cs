@@ -247,9 +247,147 @@ namespace FastReflection.XmlDocs.Tests
             ParameterInfo parameter = null!;
             Assembly assembly = null!;
             Assert.Throws<ArgumentNullException>(() => member.GetXmlDocsSummary());
+            Assert.Throws<ArgumentNullException>(() => member.GetXmlDocsElement());
             Assert.Throws<ArgumentNullException>(() => typeof(Person).GetXmlDocsTag(null!));
             Assert.Throws<ArgumentNullException>(() => parameter.GetXmlDocs());
             Assert.Throws<ArgumentNullException>(() => assembly.GetXmlDocsElement());
+        }
+
+        // Member-name generation: signatures resolve in documentation-id form so the
+        // generated doc file entry matches.
+
+        [Fact]
+        public void Summary_OnConstructedGenericType_ResolvesToDefinition()
+        {
+            Assert.Equal("Box summary.", typeof(Box<int>).GetXmlDocsSummary());
+        }
+
+        [Fact]
+        public void Summary_OnConversionOperator_ResolvesReturnTypeSuffix()
+        {
+            var conversion = typeof(Converts).GetMethod("op_Implicit")!;
+            Assert.Equal("Converts to an int.", conversion.GetXmlDocsSummary());
+        }
+
+        [Fact]
+        public void Summary_OnRefPointerMultidimAndGenericSignatures_Resolves()
+        {
+            var type = typeof(Converts);
+            Assert.Equal("Reads a ref parameter.", type.GetMethod(nameof(Converts.Ref))!.GetXmlDocsSummary());
+            Assert.Equal("Reads a pointer parameter.", type.GetMethod(nameof(Converts.Ptr))!.GetXmlDocsSummary());
+            Assert.Equal("Reads a two-dimensional array.", type.GetMethod(nameof(Converts.Grid))!.GetXmlDocsSummary());
+            Assert.Equal("Reads a two-argument constructed generic.", type.GetMethod(nameof(Converts.Map))!.GetXmlDocsSummary());
+        }
+
+        [Fact]
+        public void ParamDocs_OnUndocumentedMember_ReturnsEmpty()
+        {
+            var parameter = typeof(Person).GetMethod(nameof(Person.UndocumentedParam))!.GetParameters()[0];
+            Assert.Equal(string.Empty, parameter.GetXmlDocs());
+        }
+
+        [Fact]
+        public void Element_OnUnkownMemberKind_ThrowsArgument()
+        {
+            // MemberInfo kinds outside the documented set (type, method, constructor,
+            // property, field, event) have no XML documentation entry.
+            Assert.Throws<ArgumentException>(() => new WeirdMember().GetXmlDocsElement());
+        }
+
+        // Flattening: see cref/paramref/unknown elements collapse to text; empty tags flatten
+        // to the empty string. Fixture.xml drives these arms deterministically.
+
+        [Fact]
+        public void Summary_FlattensParamrefSeeAndUnknownTags()
+        {
+            var method = typeof(Person).GetMethod(nameof(Person.Combine))!;
+            Assert.Equal("Uses a with Combine and bold and  text.", method.GetXmlDocsSummary(FixtureOptions()));
+        }
+
+        [Fact]
+        public void Summary_OnEmptyTag_ReturnsEmpty()
+        {
+            var method = typeof(Person).GetMethod(nameof(Person.UndocumentedParam))!;
+            Assert.Equal(string.Empty, method.GetXmlDocsSummary(FixtureOptions()));
+        }
+
+        // Path resolution legs: beside the assembly, then the app base directory, then the
+        // NuGet package cache when ResolveExternalXmlDocs is on.
+
+        [Fact]
+        public void Element_OnAssemblyInOtherDirectory_ResolvesFromBaseDirectory()
+        {
+            // A relocated FastReflection.dll has no XML file beside it; the base-directory
+            // copy of FastReflection.xml satisfies the read.
+            var temp = Path.Combine(Path.GetTempPath(), "xmldocs-loc-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(temp);
+            var target = Path.Combine(temp, "FastReflection.dll");
+            File.Copy(typeof(FastReflection.TypeAccessor).Assembly.Location, target);
+
+            var relocated = Assembly.LoadFile(target);
+            Assert.NotNull(relocated.GetXmlDocsElement());
+
+            try { Directory.Delete(temp, recursive: true); }
+            catch (Exception) { } // the loaded assembly keeps the file mapped until process exit
+        }
+
+#if NET9_0_OR_GREATER
+        [Fact]
+        public void ExternalNuGetPackageDocs_ResolveWhenEnabled()
+        {
+            // A fake global-packages cache with versioned package layouts (plus a non-version
+            // directory) — the newest SemVer directory wins, not the lexical max.
+            var root = Path.Combine(Path.GetTempPath(), "xmldocs-external-" + Guid.NewGuid().ToString("N"));
+            var packageDirectory = Path.Combine(root, "fakelib");
+            foreach (var version in new[] { "1.0.0", "10.0.0", "beta" })
+            {
+                var dir = Path.Combine(packageDirectory, version, "lib");
+                Directory.CreateDirectory(dir);
+                File.WriteAllText(Path.Combine(dir, "FakeLib.xml"),
+                    "<doc><assembly><name>FakeLib</name></assembly><members>" +
+                    $"<member name=\"T:FakeLib.ExternalPerson\"><summary>{version} summary.</summary></member>" +
+                    "</members></doc>");
+            }
+
+            // A persisted dynamic assembly has no XML file beside it or in the base
+            // directory — only the external package probe can satisfy the read.
+            var builder = new System.Reflection.Emit.PersistedAssemblyBuilder(
+                new AssemblyName("FakeLib"), typeof(object).Assembly);
+            builder.DefineDynamicModule("FakeLib")
+                .DefineType("FakeLib.ExternalPerson", TypeAttributes.Public | TypeAttributes.Class)
+                .CreateType();
+            using var stream = new MemoryStream();
+            builder.Save(stream);
+            var externalType = Assembly.Load(stream.ToArray()).GetType("FakeLib.ExternalPerson")!;
+
+            var previous = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
+            Environment.SetEnvironmentVariable("NUGET_PACKAGES", root);
+            try
+            {
+                var options = new XmlDocsOptions { ResolveExternalXmlDocs = true };
+                Assert.Equal("10.0.0 summary.", externalType.GetXmlDocsSummary(options));
+                Assert.Equal(string.Empty,
+                    externalType.GetXmlDocsSummary(new XmlDocsOptions { ResolveExternalXmlDocs = false }));
+            }
+            finally
+            {
+                Environment.SetEnvironmentVariable("NUGET_PACKAGES", previous);
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+#endif
+
+        private sealed class WeirdMember : MemberInfo
+        {
+            public override Type? DeclaringType => typeof(Person);
+            public override MemberTypes MemberType => MemberTypes.Custom;
+            public override Module Module => typeof(Person).Module;
+            public override string Name => "Weird";
+            public override Type? ReflectedType => typeof(Person);
+            public override object[] GetCustomAttributes(bool inherit) => Array.Empty<object>();
+            public override object[] GetCustomAttributes(Type attributeType, bool inherit) => Array.Empty<object>();
+            public override bool IsDefined(Type attributeType, bool inherit) => false;
         }
     }
 }

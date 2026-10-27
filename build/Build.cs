@@ -202,7 +202,7 @@ class Build : NukeBuild
 
                 foreach (var line in package.Descendants("line"))
                 {
-                    var key = (line.Ancestors("class").First().Attribute("filename")!.Value,
+                    var key = (NormalizeCoveragePath(line.Ancestors("class").First().Attribute("filename")!.Value, name),
                                (int)line.Attribute("number")!);
                     lines[key] = lines.TryGetValue(key, out var covered) && covered
                                  || (int)line.Attribute("hits")! > 0;
@@ -225,6 +225,22 @@ class Build : NukeBuild
         }
 
         Assert.True(failures.Count == 0, "Coverage gate failed:\n  " + string.Join("\n  ", failures));
+    }
+
+    // Coverlet keys a referenced project's sources relative to src/ ("FastReflection/Binding/X.cs")
+    // in another project's report, but relative to the project directory ("Binding/X.cs") in the
+    // owning project's own report. Strip a leading "<assembly-name>/" segment so both spellings
+    // key the same source line — without it the union double-counts every cross-project line.
+    static string NormalizeCoveragePath(string fileName, string assemblyName)
+    {
+        var normalized = fileName.Replace('\\', '/');
+        var marker = "/" + assemblyName + "/";
+        var index = normalized.IndexOf(marker, StringComparison.Ordinal);
+        if (index >= 0)
+            return normalized[(index + marker.Length)..];
+
+        var prefix = assemblyName + "/";
+        return normalized.StartsWith(prefix, StringComparison.Ordinal) ? normalized[prefix.Length..] : normalized;
     }
 
     // Artifact marker for the generated workflows: only the ci workflow invokes this target, so
