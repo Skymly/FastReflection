@@ -8,7 +8,9 @@ using FastReflection.XmlDocs;
 var summary = typeof(Person).GetXmlDocsSummary();
 var remarks = method.GetXmlDocsRemarks();
 var element = method.GetXmlDocsElement();          // the member's XElement
+var example = method.GetXmlDocsTag("example");     // one named tag's inner XML
 var paramDoc = method.GetParameters()[0].GetXmlDocs();
+var asmDoc = typeof(Person).Assembly.GetXmlDocsElement();
 
 // override the resolved file, or disable the NuGet-cache fallback
 var options = new XmlDocsOptions { PathToXmlFile = path, ResolveExternalXmlDocs = false };
