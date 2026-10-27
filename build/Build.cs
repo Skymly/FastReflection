@@ -63,7 +63,9 @@ class Build : NukeBuild
     readonly bool BenchmarkSkipRun;
 
     AbsolutePath SolutionFile => RootDirectory / "FastReflection.slnx";
-    AbsolutePath TestProject => RootDirectory / "tests" / "FastReflection.Tests" / "FastReflection.Tests.csproj";
+    // Every xunit leg matrix under tests/ (*.Tests.csproj) — satellites add their own
+    // test projects; the AotSmoke exe is a publish target, not a test project.
+    IReadOnlyCollection<AbsolutePath> TestProjects => RootDirectory.GlobFiles("tests/*/*.Tests.csproj");
     AbsolutePath SmokeProject => RootDirectory / "tests" / "FastReflection.AotSmoke" / "FastReflection.AotSmoke.csproj";
     AbsolutePath ArtifactsDirectory => RootDirectory / "artifacts";
     AbsolutePath BenchmarkProject => RootDirectory / "benchmarks" / "FastReflection.Benchmarks" / "FastReflection.Benchmarks.csproj";
@@ -126,15 +128,18 @@ class Build : NukeBuild
         .DependsOn(AotSmoke)
         .Executes(() =>
         {
-            var frameworks = TargetFrameworksOf(TestProject)
-                .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm));
+            foreach (var project in TestProjects.OrderBy(p => p.Name))
+            {
+                var frameworks = TargetFrameworksOf(project)
+                    .Where(tfm => OperatingSystem.IsWindows() || !IsNetFrameworkTfm(tfm));
 
-            DotNetTest(s => s
-                .SetProjectFile(TestProject)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .CombineWith(frameworks, (settings, framework) => settings
-                    .SetFramework(framework)));
+                DotNetTest(s => s
+                    .SetProjectFile(project)
+                    .SetConfiguration(Configuration)
+                    .EnableNoBuild()
+                    .CombineWith(frameworks, (settings, framework) => settings
+                        .SetFramework(framework)));
+            }
         });
 
     // Benchmark gate (docs/specs/1.0-quality-gates.md): every leg runs the suite under

@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
+    <ProjectReference Include="..\..\src\FastReflection.ObjectReader\FastReflection.ObjectReader.csproj" />
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
     <PackageReference Include="FastMember" Version="1.5.0" />
     <!-- Dynamitey bound-call comparison rows (#35): its net40 + netstandard2.0 assets cover
