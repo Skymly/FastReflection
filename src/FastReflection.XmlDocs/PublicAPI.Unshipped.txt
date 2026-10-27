@@ -1,1 +1,20 @@
 #nullable enable
+FastReflection.XmlDocs.XmlDocsExtensions
+FastReflection.XmlDocs.XmlDocsOptions
+FastReflection.XmlDocs.XmlDocsOptions.PathToXmlFile.get -> string?
+FastReflection.XmlDocs.XmlDocsOptions.PathToXmlFile.set -> void
+FastReflection.XmlDocs.XmlDocsOptions.ResolveExternalXmlDocs.get -> bool
+FastReflection.XmlDocs.XmlDocsOptions.ResolveExternalXmlDocs.set -> void
+FastReflection.XmlDocs.XmlDocsOptions.XmlDocsOptions() -> void
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocs(this System.Reflection.ParameterInfo! parameter) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocs(this System.Reflection.ParameterInfo! parameter, FastReflection.XmlDocs.XmlDocsOptions? options) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsElement(this System.Reflection.Assembly! assembly) -> System.Xml.Linq.XElement?
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsElement(this System.Reflection.Assembly! assembly, FastReflection.XmlDocs.XmlDocsOptions? options) -> System.Xml.Linq.XElement?
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsElement(this System.Reflection.MemberInfo! member) -> System.Xml.Linq.XElement?
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsElement(this System.Reflection.MemberInfo! member, FastReflection.XmlDocs.XmlDocsOptions? options) -> System.Xml.Linq.XElement?
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsRemarks(this System.Reflection.MemberInfo! member) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsRemarks(this System.Reflection.MemberInfo! member, FastReflection.XmlDocs.XmlDocsOptions? options) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsSummary(this System.Reflection.MemberInfo! member) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsSummary(this System.Reflection.MemberInfo! member, FastReflection.XmlDocs.XmlDocsOptions? options) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsTag(this System.Reflection.MemberInfo! member, string! tagName) -> string!
+static FastReflection.XmlDocs.XmlDocsExtensions.GetXmlDocsTag(this System.Reflection.MemberInfo! member, string! tagName, FastReflection.XmlDocs.XmlDocsOptions? options) -> string!

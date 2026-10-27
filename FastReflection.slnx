@@ -11,5 +11,6 @@
     <Project Path="tests/FastReflection.AotSmoke/FastReflection.AotSmoke.csproj" />
     <Project Path="tests/FastReflection.ObjectReader.Tests/FastReflection.ObjectReader.Tests.csproj" />
     <Project Path="tests/FastReflection.Tests/FastReflection.Tests.csproj" />
+    <Project Path="tests/FastReflection.XmlDocs.Tests/FastReflection.XmlDocs.Tests.csproj" />
   </Folder>
 </Solution>

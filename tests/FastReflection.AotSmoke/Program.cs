@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using FastReflection.XmlDocs;
 using FrObjectReader = FastReflection.ObjectReader.ObjectReader;
 
 namespace FastReflection.AotSmoke
@@ -29,6 +30,7 @@ namespace FastReflection.AotSmoke
                 ("factory-fallback", FactoryFallback),
                 ("ref-typed-invoker-not-supported", RefTypedInvokerNotSupported),
                 ("object-reader-fallback", ObjectReaderFallback),
+                ("xml-docs-fallback", XmlDocsFallback),
             };
 
             for (var i = 0; i < scenarios.Length; i++)
@@ -165,6 +167,19 @@ namespace FastReflection.AotSmoke
             Equal(1, reader.GetInt32(1), "reader Count");
             Check(reader.Read(), "reader second row");
             Check(!reader.Read(), "reader exhausted");
+        }
+
+        // The XmlDocs satellite under no dynamic code (#37): the read path — file resolution,
+        // XML parse, member-name lookup, text flatten — is file IO plus BCL metadata only.
+        // PathToXmlFile is used because PublishAot leaves Assembly.Location empty.
+        private static void XmlDocsFallback()
+        {
+            var options = new XmlDocsOptions { PathToXmlFile = Path.Combine(AppContext.BaseDirectory, "SmokeDocs.xml") };
+            Equal("Smoke docs summary.", typeof(SmokePoco).GetXmlDocsSummary(options), "type summary");
+            var element = PocoType.GetMethod(nameof(SmokePoco.Add))!.GetXmlDocsElement(options);
+            Check(element?.Element("param")?.Attribute("name")?.Value == "a", "param element missing");
+            var param = PocoType.GetMethod(nameof(SmokePoco.Add))!.GetParameters()[0];
+            Equal("Left operand.", param.GetXmlDocs(options), "param doc");
         }
 
         private delegate void IncrementRef(SmokePoco target, ref Ref<int> value);

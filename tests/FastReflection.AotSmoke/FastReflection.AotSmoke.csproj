@@ -11,6 +11,10 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
     <ProjectReference Include="..\..\src\FastReflection.ObjectReader\FastReflection.ObjectReader.csproj" />
+    <ProjectReference Include="..\..\src\FastReflection.XmlDocs\FastReflection.XmlDocs.csproj" />
+    <!-- XmlDocs smoke fixture: the scenario reads it through XmlDocsOptions.PathToXmlFile,
+         which must work under PublishAot where Assembly.Location is empty. -->
+    <Content Include="SmokeDocs.xml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
