@@ -15,14 +15,29 @@ namespace FastReflection
     /// </summary>
     public abstract class TypeAccessor
     {
+        /// <summary>
+        /// The member set a type accessor may discover over its type: instance Members,
+        /// the bound-call domain (methods, indexers, constructors), and inherited interfaces.
+        /// Mirrored by the ObjectReader satellite's private copy (no InternalsVisibleTo) — keep in sync.
+        /// </summary>
+        internal const DynamicallyAccessedMemberTypes DiscoveryMemberTypes =
+            DynamicallyAccessedMemberTypes.PublicProperties | DynamicallyAccessedMemberTypes.NonPublicProperties
+            | DynamicallyAccessedMemberTypes.PublicFields | DynamicallyAccessedMemberTypes.NonPublicFields
+            | DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods
+            | DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors
+            | DynamicallyAccessedMemberTypes.Interfaces;
+
         internal TypeAccessor() { }
 
         private readonly struct CacheKey : IEquatable<CacheKey>
         {
+            [DynamicallyAccessedMembers(DiscoveryMemberTypes)]
             internal readonly Type Type;
             internal readonly bool NonPublic;
 
-            internal CacheKey(Type type, bool nonPublic)
+            internal CacheKey(
+                [DynamicallyAccessedMembers(DiscoveryMemberTypes)]
+                Type type, bool nonPublic)
             {
                 Type = type;
                 NonPublic = nonPublic;
@@ -45,7 +60,9 @@ namespace FastReflection
         /// <returns>The cached type accessor.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="type"/> is null.</exception>
         /// <exception cref="ArgumentException"><paramref name="type"/> is an open generic.</exception>
-        public static TypeAccessor Create(Type type, bool allowNonPublicAccessors = false)
+        public static TypeAccessor Create(
+            [DynamicallyAccessedMembers(DiscoveryMemberTypes)]
+            Type type, bool allowNonPublicAccessors = false)
         {
             if (type == null) throw new ArgumentNullException(nameof(type));
             if (type.ContainsGenericParameters)
@@ -259,6 +276,7 @@ namespace FastReflection
             internal OrdinalAttribute? Key;
         }
 
+        [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
         private readonly Type _type;
         private readonly bool _nonPublic;
         private readonly Dictionary<string, int> _map;
@@ -268,8 +286,11 @@ namespace FastReflection
         private readonly ConcurrentDictionary<BoundSignature, BoundCall> _bound = new();
         private BoundTables? _tables;
 
-        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
-        internal RuntimeTypeAccessor(Type type, bool allowNonPublicAccessors)
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = EmitHelper.LevelEnumerationJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2065", Justification = EmitHelper.LevelEnumerationJustification)]
+        internal RuntimeTypeAccessor(
+            [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
+            Type type, bool allowNonPublicAccessors)
         {
             _type = type;
             _nonPublic = allowNonPublicAccessors;
@@ -578,8 +599,9 @@ namespace FastReflection
         private static OrdinalAttribute? ReadOrdinalKey(MemberInfo member)
             => (OrdinalAttribute?)Attribute.GetCustomAttribute(member, typeof(OrdinalAttribute), inherit: true);
 
-        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "Members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
-        private static Type[] CollectMemberTypes(Type type)
+        private static Type[] CollectMemberTypes(
+            [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
+            Type type)
         {
             if (!type.IsInterface) return new[] { type };
             var list = new List<Type> { type };
@@ -587,7 +609,9 @@ namespace FastReflection
             return list.ToArray();
         }
 
-        private static Func<object?>? TryCreateFactory(Type type, bool nonPublic)
+        private static Func<object?>? TryCreateFactory(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type, bool nonPublic)
         {
             try { return AccessorEmitter.CreateFactory(type, nonPublic); }
             catch (ArgumentException) { return null; }
@@ -595,6 +619,8 @@ namespace FastReflection
 
         // Emit first; fall back to plain reflection when dynamic code is unavailable.
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AccessorEmitter.EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = AccessorEmitter.EmitSiteJustification)]
         private static Func<object?, object?>? TryCreateGetter(PropertyInfo prop, MethodInfo? get)
         {
             if (get == null) return null;
@@ -604,6 +630,8 @@ namespace FastReflection
                 (Func<object?, object?>)(target => ReflectionFallback.Get(get, target)));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AccessorEmitter.EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = AccessorEmitter.EmitSiteJustification)]
         private static Action<object?, object?>? TryCreateSetter(PropertyInfo prop, MethodInfo? set)
         {
             if (set == null) return null;
@@ -613,6 +641,8 @@ namespace FastReflection
                 (Action<object?, object?>)((target, value) => ReflectionFallback.Set(set, target, value)));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AccessorEmitter.EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = AccessorEmitter.EmitSiteJustification)]
         private static Func<object?, object?>? TryCreateGetter(FieldInfo field)
         {
             if (!EmitHelper.DynamicCodeSupported) return target => ReflectionFallback.Get(field, target);
@@ -621,6 +651,8 @@ namespace FastReflection
                 (Func<object?, object?>)(target => ReflectionFallback.Get(field, target)));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = AccessorEmitter.EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = AccessorEmitter.EmitSiteJustification)]
         private static Action<object?, object?>? TryCreateSetter(FieldInfo field)
         {
             if (!EmitHelper.DynamicCodeSupported) return (target, value) => ReflectionFallback.Set(field, target, value);

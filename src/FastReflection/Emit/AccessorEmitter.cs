@@ -11,12 +11,15 @@ namespace FastReflection.Emit
     internal static class AccessorEmitter
     {
         // Shared USM justification for the emit call sites below: they run only behind
-        // EmitHelper.DynamicCodeSupported, and every caller falls back to reflection.
-        private const string EmitSiteJustification =
-            "Emit sites run only behind EmitHelper.DynamicCodeSupported; callers fall back to reflection. The #9 annotation contract is finalized in #38.";
+        // EmitHelper.DynamicCodeSupported, and every caller falls back to reflection —
+        // or throws the documented NotSupportedException where the contract keeps none.
+        internal const string EmitSiteJustification =
+            "Emit sites run only behind EmitHelper.DynamicCodeSupported; callers fall back to plain reflection or throw the documented NotSupportedException.";
 
         // ============================== properties ==============================
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static Func<object?, object?> CreateGetter(PropertyInfo property)
         {
             if (property == null) throw new ArgumentNullException(nameof(property));
@@ -31,8 +34,8 @@ namespace FastReflection.Emit
                 (Func<object?, object?>)(target => ReflectionFallback.Get(get, target)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static Func<object?, object?> EmitPropertyGetter(PropertyInfo property, MethodInfo get)
         {
             var dt = DeclaringType(property);
@@ -51,6 +54,8 @@ namespace FastReflection.Emit
             return (Func<object?, object?>)dm.CreateDelegate(typeof(Func<object?, object?>));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static Action<object?, object?> CreateSetter(PropertyInfo property)
         {
             if (property == null) throw new ArgumentNullException(nameof(property));
@@ -83,8 +88,8 @@ namespace FastReflection.Emit
                 (Action<object?, object?>)((target, value) => ReflectionFallback.Set(set, target, value)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static Action<object?, object?> EmitPropertySetter(PropertyInfo property, MethodInfo set)
         {
             var dt = DeclaringType(property);
@@ -105,8 +110,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Emits <c>target => (elType)via-getter-reference = value</c> for ref-returning properties.</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static Action<object?, object?> EmitPropertySetterViaRef(PropertyInfo property, MethodInfo get, Type elementType)
         {
             var dt = DeclaringType(property);
@@ -132,6 +137,8 @@ namespace FastReflection.Emit
 
         // ============================== fields ==============================
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static Func<object?, object?> CreateGetter(FieldInfo field)
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
@@ -143,8 +150,8 @@ namespace FastReflection.Emit
                 (Func<object?, object?>)(target => ReflectionFallback.Get(field, target)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static Func<object?, object?> EmitFieldGetter(FieldInfo field)
         {
             var dt = DeclaringType(field);
@@ -167,6 +174,8 @@ namespace FastReflection.Emit
             return (Func<object?, object?>)dm.CreateDelegate(typeof(Func<object?, object?>));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static Action<object?, object?> CreateSetter(FieldInfo field)
         {
             if (field == null) throw new ArgumentNullException(nameof(field));
@@ -180,8 +189,8 @@ namespace FastReflection.Emit
                 (Action<object?, object?>)((target, value) => ReflectionFallback.Set(field, target, value)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static Action<object?, object?> EmitFieldSetter(FieldInfo field)
         {
             var dt = DeclaringType(field);
@@ -209,6 +218,8 @@ namespace FastReflection.Emit
 
         // ============================== methods ==============================
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static FastInvoker CreateInvoker(MethodInfo method)
         {
             if (method == null) throw new ArgumentNullException(nameof(method));
@@ -222,8 +233,8 @@ namespace FastReflection.Emit
                 (FastInvoker)((target, args) => ReflectionFallback.Invoke(method, target, args)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static FastInvoker EmitInvoker(MethodInfo method)
         {
             var dt = DeclaringType(method);
@@ -251,6 +262,8 @@ namespace FastReflection.Emit
 
         // ============================== constructors ==============================
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static FastConstructorInvoker CreateInvoker(ConstructorInfo ctor)
         {
             if (ctor == null) throw new ArgumentNullException(nameof(ctor));
@@ -264,8 +277,8 @@ namespace FastReflection.Emit
                 (FastConstructorInvoker)(args => ReflectionFallback.Invoke(ctor, args)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static FastConstructorInvoker EmitInvoker(ConstructorInfo ctor, ParameterInfo[] ps)
         {
             var dt = DeclaringType(ctor);
@@ -283,6 +296,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Factory for a parameterless constructor.</summary>
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static Func<object?> CreateFactory(ConstructorInfo ctor)
         {
             if (ctor == null) throw new ArgumentNullException(nameof(ctor));
@@ -299,9 +314,11 @@ namespace FastReflection.Emit
         /// <summary>Factory for a type's parameterless constructor (any visibility when <paramref name="nonPublic"/>); structs get an initobj factory.</summary>
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
         [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("Trimming", "IL2067", Justification = "The constructor requirements of the caller-supplied type are part of the #9 contract, finalized in #38.")]
-        [UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "The constructor requirements of the caller-supplied type are part of the #9 contract, finalized in #38.")]
-        internal static Func<object?> CreateFactory(Type type, bool nonPublic)
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "The parameterless-constructor pair keeps every ctor Type.GetConstructor can return for a Type.EmptyTypes query; parameterized public ctors can never match it.")]
+        internal static Func<object?> CreateFactory(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type, bool nonPublic)
         {
             if (type == null) throw new ArgumentNullException(nameof(type));
             if (type.IsAbstract) // includes static classes
@@ -341,8 +358,8 @@ namespace FastReflection.Emit
             throw new ArgumentException($"Type '{type}' has no parameterless constructor.", nameof(type));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         internal static Func<object?> EmitFactory(ConstructorInfo ctor)
         {
             var dt = DeclaringType(ctor);
@@ -357,6 +374,8 @@ namespace FastReflection.Emit
         }
 
 #if NET8_0_OR_GREATER
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static FastSpanInvoker CreateSpanInvoker(MethodInfo method)
         {
             if (method == null) throw new ArgumentNullException(nameof(method));
@@ -370,6 +389,8 @@ namespace FastReflection.Emit
                 (FastSpanInvoker)((target, args) => ReflectionFallback.Invoke(method, target, args)));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
         internal static FastSpanConstructorInvoker CreateSpanInvoker(ConstructorInfo ctor)
         {
             if (ctor == null) throw new ArgumentNullException(nameof(ctor));
@@ -381,8 +402,8 @@ namespace FastReflection.Emit
                 (FastSpanConstructorInvoker)(args => ReflectionFallback.Invoke(ctor, args)));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static FastSpanInvoker EmitSpanMethod(MethodInfo method)
         {
             var dt = DeclaringType(method);
@@ -408,8 +429,8 @@ namespace FastReflection.Emit
             return (FastSpanInvoker)dm.CreateDelegate(typeof(FastSpanInvoker));
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static FastSpanConstructorInvoker EmitSpanConstructor(ConstructorInfo ctor)
         {
             var dt = DeclaringType(ctor);
@@ -428,8 +449,12 @@ namespace FastReflection.Emit
         }
 #endif
 
-        [UnconditionalSuppressMessage("Trimming", "IL2090", Justification = "TDelegate's Invoke method is part of the #9 contract (DynamicallyAccessedMembers), finalized in #38.")]
-        internal static TDelegate CreateTypedInvoker<TDelegate>(MethodInfo method) where TDelegate : Delegate
+        // The mixed contract lives here as on the public member: the exact bind needs no
+        // dynamic code; only the emit-adapted path does. RUC reaches no further than this
+        // member — the public surface carries RequiresDynamicCode alone.
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
+        internal static TDelegate CreateTypedInvoker<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] TDelegate>(MethodInfo method) where TDelegate : Delegate
         {
             if (method == null) throw new ArgumentNullException(nameof(method));
             ThrowIfOpenGeneric(method);
@@ -453,9 +478,10 @@ namespace FastReflection.Emit
             return EmitTypedInvoker<TDelegate>(method, invoke);
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = EmitSiteJustification)]
-        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "Ref<T>.Value is kept by the #9 contract (DynamicDependency), finalized in #38.")]
+        // A trimmed-but-JITted publish still resolves Ref<T>.Value by name — keep it.
+        [DynamicDependency(DynamicallyAccessedMemberTypes.PublicFields, typeof(Ref<>))]
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static TDelegate EmitTypedInvoker<TDelegate>(MethodInfo method, MethodInfo invoke) where TDelegate : Delegate
         {
             var dt = DeclaringType(method);
@@ -637,6 +663,8 @@ namespace FastReflection.Emit
         /// (initialized from <c>args[i]</c> when non-null) and passed by <c>ldloca</c>.
         /// <paramref name="span"/> reads a <c>Span&lt;object?&gt;</c> argument instead of an object array (net8.0).
         /// </summary>
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static List<ByRefLocal>? EmitParameters(ILGenerator il, ParameterInfo[] ps, int argsIndex, bool span = false)
         {
             List<ByRefLocal>? byrefs = null;
@@ -672,6 +700,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Writes by-ref locals back to <c>args[i]</c> (boxed). Skipped for <c>in</c> parameters.</summary>
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static void EmitWriteBack(ILGenerator il, List<ByRefLocal>? locals, int argsIndex, bool span = false)
         {
             if (locals == null) return;
@@ -696,6 +726,8 @@ namespace FastReflection.Emit
             }
         }
 
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static void EmitLoadArgument(ILGenerator il, int argsIndex, int elementIndex, Type type, bool span)
         {
             if (span)
@@ -711,6 +743,8 @@ namespace FastReflection.Emit
             EmitHelper.EmitLoadArrayElement(il, argsIndex, elementIndex, type);
         }
 
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static void EmitLoadArgumentObject(ILGenerator il, int argsIndex, int elementIndex, bool span)
         {
             if (span)
@@ -729,6 +763,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Loads a member value to object; dereferences by-ref member types (ref-returning properties).</summary>
+        [RequiresDynamicCode(EmitHelper.DynamicCodeMessage)]
+        [RequiresUnreferencedCode(EmitHelper.DynamicCodeMessage)]
         private static void EmitLoadMemberValue(ILGenerator il, Type memberType)
             => EmitHelper.EmitConvertToObject(il, memberType);
 

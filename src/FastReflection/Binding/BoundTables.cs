@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using FastReflection.Emit;
 
 namespace FastReflection.Binding
 {
@@ -11,6 +12,7 @@ namespace FastReflection.Binding
     /// </summary>
     internal sealed class BoundTables
     {
+        [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
         internal readonly Type Owner;
         internal readonly Dictionary<string, MethodInfo[]> Methods;
         internal readonly Dictionary<string, PropertyInfo[]> Properties;
@@ -19,6 +21,7 @@ namespace FastReflection.Binding
         internal readonly string[] MemberNames;
 
         private BoundTables(
+            [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
             Type owner,
             Dictionary<string, MethodInfo[]> methods,
             Dictionary<string, PropertyInfo[]> properties,
@@ -35,9 +38,9 @@ namespace FastReflection.Binding
         }
 
         /// <summary>Member-discovery enumeration for the bound domain: interface types walk themselves plus inherited interfaces; other types walk the base chain, most-derived first.</summary>
-        [UnconditionalSuppressMessage("Trimming", "IL2070",
-            Justification = "Bound members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
-        internal static Type[] CollectLevels(Type type)
+        internal static Type[] CollectLevels(
+            [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
+            Type type)
         {
             if (!type.IsInterface)
             {
@@ -52,11 +55,11 @@ namespace FastReflection.Binding
             return set.ToArray();
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2075",
-            Justification = "Bound members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
-        [UnconditionalSuppressMessage("Trimming", "IL2070",
-            Justification = "Bound members are enumerated from the caller-supplied type; the DynamicallyAccessedMembers union set on TypeAccessor.Create is part of the #9 contract, finalized in #38.")]
-        internal static BoundTables Build(Type type, bool nonPublic)
+        [UnconditionalSuppressMessage("Trimming", "IL2075", Justification = EmitHelper.LevelEnumerationJustification)]
+        [UnconditionalSuppressMessage("Trimming", "IL2065", Justification = EmitHelper.LevelEnumerationJustification)]
+        internal static BoundTables Build(
+            [DynamicallyAccessedMembers(TypeAccessor.DiscoveryMemberTypes)]
+            Type type, bool nonPublic)
         {
             var flags = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.DeclaredOnly;
             if (nonPublic) flags |= BindingFlags.NonPublic;

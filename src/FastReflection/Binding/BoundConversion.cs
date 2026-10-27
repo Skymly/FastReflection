@@ -1,5 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
+using FastReflection.Emit;
 
 namespace FastReflection.Binding
 {
@@ -123,8 +125,7 @@ namespace FastReflection.Binding
         /// Per-argument bound-call conversion (stage 5): the sanctioned set, widening-only numerics.
         /// By-ref targets take the element type; a null by-ref slot supplies its default.
         /// </summary>
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2072",
-            Justification = "A by-ref element type is always creatable for its default value; the #9 contract is finalized in #38.")]
+        [UnconditionalSuppressMessage("Trimming", "IL2072", Justification = EmitHelper.MaterializedSignatureJustification)]
         internal static object? Convert(object? value, Type target)
         {
             if (target.IsByRef)

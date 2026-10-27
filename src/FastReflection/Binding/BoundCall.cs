@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace FastReflection.Binding
 {
     /// <summary>The argument-mapping recipe a resolved bound call replays on every invocation.</summary>
@@ -136,8 +138,8 @@ namespace FastReflection.Binding
         }
 
         /// <summary>Packs caller positional arguments <paramref name="start"/> onward into a typed <c>params</c> array.</summary>
-        [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050",
-            Justification = "The params element type comes from a member of the caller-supplied type; its requirements are covered by the #9 annotation union, finalized in #38.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "The params element type comes from a member of the caller-supplied rooted type; an array shape the AOT compiler did not emit fails at run time as a stage-2 bind miss.")]
         private static object Pack(object?[] args, int start, Type elementType)
         {
             var count = args.Length - start;

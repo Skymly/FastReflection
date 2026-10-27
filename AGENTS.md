@@ -19,7 +19,7 @@
   - `Emit/EmitHelper.cs` — DynamicMethod factory + IL micro-helpers + `DynamicCodeSupported` probe
   - `Emit/AccessorEmitter.cs` — IL emit for accesses and exact binds, plus reflection fallback
   - `TypeAccessor.cs`, `ObjectAccessor.cs`, `Member.cs` — type accessor, object accessor, and Member
-  - `Polyfills.cs` — `RequiresUnreferencedCode`/`RequiresDynamicCode` for downlevel TFMs
+  - `Polyfills.cs` — downlevel-TFM polyfills for the linker attribute set (`RequiresDynamicCode`/`RequiresUnreferencedCode`/`UnconditionalSuppressMessage`/`DynamicallyAccessedMembers`/`DynamicDependency` + the `DynamicallyAccessedMemberTypes` enum), name-matched to the BCL shapes (verify `ValidOn` against the net8.0 ref assembly — e.g. RDC/RUC are `Class|Constructor|Method` only)
 - `tests/FastReflection.AotSmoke/` — PublishAot smoke app asserting the no-dynamic-code contract end-to-end; the Nuke `AotSmoke` target publishes linux-x64 and runs it, Linux only (invoked via `Test`). Exit 0 pass; nonzero names the failed scenario.
 
 ## Conventions / gotchas

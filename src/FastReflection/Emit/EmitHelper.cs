@@ -14,6 +14,18 @@ namespace FastReflection.Emit
         /// <summary>The wrong-length message shared by the emitted checks and the reflection path.</summary>
         internal const string ArgsLengthMessage = "args length does not match this call.";
 
+        /// <summary>Justification shared by the suppression sites where a Type[] enumeration loses per-element DAM flow — the caller-supplied union roots every level.</summary>
+        internal const string LevelEnumerationJustification =
+            "Each enumerated level is kept by the caller-supplied type's TypeAccessor.Create union — member marking covers base-type members and Interfaces covers interface levels; per-element requirements on a Type[] return are inexpressible.";
+
+        /// <summary>Justification shared by the sites defaulting a member-signature type — its parameterless constructor sits outside the TypeAccessor.Create union.</summary>
+        internal const string MaterializedSignatureJustification =
+            "A parameter or by-ref element type comes from a materialized member signature the caller already holds; its parameterless constructor is outside the TypeAccessor.Create union and a missing one surfaces as an ordinary reflection failure.";
+
+        /// <summary>Justification shared by the sites instantiating generics from the caller's explicit type arguments.</summary>
+        internal const string GenericInstantiationJustification =
+            "Explicit generic type arguments come from the caller's bound call; a generic instantiation the AOT compiler did not emit fails at run time as a stage-2 bind miss.";
+
         private static readonly bool s_dynamicCode = ProbeDynamicCode();
 
         /// <summary>Test hook: force the reflection fallback path (settable from the test assembly).</summary>
@@ -50,6 +62,8 @@ namespace FastReflection.Emit
             => new(name, returnType, parameterTypes, owner, skipVisibility: true);
 
         /// <summary>Emits <c>if (arg == null) throw new ArgumentNullException("target")</c> for an instance-access target.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitCheckTarget(ILGenerator il, int argIndex = 0)
         {
             var notNull = il.DefineLabel();
@@ -66,6 +80,8 @@ namespace FastReflection.Emit
         /// <paramref name="declaringType"/>: <c>castclass</c> for reference types, <c>unbox</c>
         /// (managed pointer into the box — writes to value-type members persist) otherwise.
         /// </summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitLoadTarget(ILGenerator il, Type declaringType, int argIndex = 0)
         {
             il.Emit(OpCodes.Ldarg, argIndex);
@@ -79,6 +95,8 @@ namespace FastReflection.Emit
         /// Converts the boxed value on the stack to <paramref name="type"/>.
         /// Null converts to <see cref="InvalidCastException"/> on a non-nullable value type.
         /// </summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitConvertFromObject(ILGenerator il, Type type)
         {
             if (type.IsByRef) type = type.GetElementType()!;
@@ -106,6 +124,8 @@ namespace FastReflection.Emit
         /// Converts the value on the stack to <see cref="object"/> (boxes when necessary).
         /// A by-ref type is dereferenced first, so a <c>ref</c> return is boxed as its element value rather than as the address.
         /// </summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitConvertToObject(ILGenerator il, Type type)
         {
             if (type.IsByRef)
@@ -128,6 +148,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Emits <c>call</c> for statics/value-type methods, <c>callvirt</c> otherwise.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitCall(ILGenerator il, MethodInfo method)
         {
             var op = method.IsStatic || (method.DeclaringType?.IsValueType ?? false)
@@ -137,6 +159,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Loads <c>args[elementIndex]</c> from the object[] at <paramref name="argsParamIndex"/> and converts it to <paramref name="type"/>.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitLoadArrayElement(ILGenerator il, int argsParamIndex, int elementIndex, Type type)
         {
             il.Emit(OpCodes.Ldarg, argsParamIndex);
@@ -149,6 +173,8 @@ namespace FastReflection.Emit
         /// Emits <c>if (args == null) throw new ArgumentNullException; if (args.Length != required) throw new ArgumentException;</c>.
         /// When <paramref name="requiredCount"/> is 0 a null array is allowed but extra arguments are not.
         /// </summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitCheckArgs(ILGenerator il, int argsParamIndex, int requiredCount)
         {
             var ok = il.DefineLabel();
@@ -188,6 +214,8 @@ namespace FastReflection.Emit
             typeof(Span<object?>).GetProperty(nameof(Span<object?>.Length))!.GetGetMethod()!;
 
         /// <summary>Loads <c>args[elementIndex]</c> from the <see cref="Span{T}"/> at <paramref name="argsParamIndex"/> and converts it to <paramref name="type"/>.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitLoadSpanElement(ILGenerator il, int argsParamIndex, int elementIndex, Type type)
         {
             EmitLoadSpanElementObject(il, argsParamIndex, elementIndex);
@@ -195,6 +223,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Pushes the object reference stored at <c>args[elementIndex]</c> without unboxing.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitLoadSpanElementObject(ILGenerator il, int argsParamIndex, int elementIndex)
         {
             il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
@@ -204,6 +234,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Boxes <paramref name="local"/> and stores it into <c>args[elementIndex]</c>.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitStoreSpanElement(ILGenerator il, int argsParamIndex, int elementIndex, LocalBuilder local, Type elementType)
         {
             il.Emit(OpCodes.Ldarga_S, (byte)argsParamIndex);
@@ -215,6 +247,8 @@ namespace FastReflection.Emit
         }
 
         /// <summary>Emits <c>if (args.Length != required) throw new ArgumentException;</c>. A span is never null.</summary>
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitCheckSpan(ILGenerator il, int argsParamIndex, int requiredCount)
         {
             var ok = il.DefineLabel();
@@ -229,6 +263,8 @@ namespace FastReflection.Emit
         }
 #endif
 
+        [RequiresDynamicCode(DynamicCodeMessage)]
+        [RequiresUnreferencedCode(DynamicCodeMessage)]
         internal static void EmitLdcI4(ILGenerator il, int value)
         {
             switch (value)

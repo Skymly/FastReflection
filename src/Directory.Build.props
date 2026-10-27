@@ -49,7 +49,7 @@
   <!-- NoWarn inventory — every suppression is explicit and commented:
        - CS1591 is NOT suppressed: public members carry XML documentation, <exception> included (#8).
        - IL2xxx/IL3xxx are NOT suppressed here: AOT/trim findings are suppressed at the call site
-         via UnconditionalSuppressMessage, pending the #9 annotation contract in #38.
+         via UnconditionalSuppressMessage under the #9 annotation contract (#38).
        - NETSDK1138 is suppressed at the repo root scoped to the net8.0 leg — the leg drops
          only at a major release (#19); the EOL stance stays visible.
        Any further suppression needs an inline justification. -->
