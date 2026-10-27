@@ -20,6 +20,7 @@ public class ReferenceLibraryBenchmarks
     }
 
     private readonly Target _target = new();
+    private List<Target> _rows = null!;
     private FastMember.TypeAccessor _fastMember = null!;
     private FastReflection.TypeAccessor _frAccessor = null!;
     private Func<object, object> _frConverter = null!;
@@ -32,6 +33,7 @@ public class ReferenceLibraryBenchmarks
     [GlobalSetup]
     public void Setup()
     {
+        _rows = Enumerable.Range(0, 128).Select(i => new Target { Value = i }).ToList();
         _fastMember = FastMember.TypeAccessor.Create(typeof(Target));
         _frAccessor = FastReflection.TypeAccessor.Create(typeof(Target));
         _frConverter = FastReflection.ReflectionExtensions.CreateConverter(typeof(int), typeof(long));
@@ -71,6 +73,28 @@ public class ReferenceLibraryBenchmarks
 
     [Benchmark]
     public object FastReflection_Convert() => _frConverter(5)!;
+
+    // ObjectReader feed rows (#36): create-then-drain a column over the row list — the
+    // SqlBulkCopy/DataTable.Load path shape. Report-only like every row in this class.
+    [Benchmark]
+    public int FastMember_ObjectReaderFeed()
+    {
+        var sum = 0;
+        using (var reader = FastMember.ObjectReader.Create(_rows, nameof(Target.Value)))
+            while (reader.Read())
+                sum += reader.GetInt32(0);
+        return sum;
+    }
+
+    [Benchmark]
+    public int FastReflection_ObjectReaderFeed()
+    {
+        var sum = 0;
+        using (var reader = FastReflection.ObjectReader.ObjectReader.Create(_rows, nameof(Target.Value)))
+            while (reader.Read())
+                sum += reader.GetInt32(0);
+        return sum;
+    }
 
 #if NET8_0_OR_GREATER
     [Benchmark]

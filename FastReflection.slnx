@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FastReflection.AotSmoke/FastReflection.AotSmoke.csproj" />
+    <Project Path="tests/FastReflection.ObjectReader.Tests/FastReflection.ObjectReader.Tests.csproj" />
     <Project Path="tests/FastReflection.Tests/FastReflection.Tests.csproj" />
   </Folder>
 </Solution>

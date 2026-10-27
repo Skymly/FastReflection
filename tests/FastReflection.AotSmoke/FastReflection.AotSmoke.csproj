@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FastReflection\FastReflection.csproj" />
+    <ProjectReference Include="..\..\src\FastReflection.ObjectReader\FastReflection.ObjectReader.csproj" />
   </ItemGroup>
 
 </Project>

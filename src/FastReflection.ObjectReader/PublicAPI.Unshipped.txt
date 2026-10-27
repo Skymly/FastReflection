@@ -1,1 +1,37 @@
 #nullable enable
+FastReflection.ObjectReader.ObjectReader
+override FastReflection.ObjectReader.ObjectReader.Close() -> void
+override FastReflection.ObjectReader.ObjectReader.Depth.get -> int
+override FastReflection.ObjectReader.ObjectReader.FieldCount.get -> int
+override FastReflection.ObjectReader.ObjectReader.GetBoolean(int ordinal) -> bool
+override FastReflection.ObjectReader.ObjectReader.GetByte(int ordinal) -> byte
+override FastReflection.ObjectReader.ObjectReader.GetBytes(int ordinal, long dataOffset, byte[]? buffer, int bufferOffset, int length) -> long
+override FastReflection.ObjectReader.ObjectReader.GetChar(int ordinal) -> char
+override FastReflection.ObjectReader.ObjectReader.GetChars(int ordinal, long dataOffset, char[]? buffer, int bufferOffset, int length) -> long
+override FastReflection.ObjectReader.ObjectReader.GetDataTypeName(int ordinal) -> string!
+override FastReflection.ObjectReader.ObjectReader.GetDateTime(int ordinal) -> System.DateTime
+override FastReflection.ObjectReader.ObjectReader.GetDecimal(int ordinal) -> decimal
+override FastReflection.ObjectReader.ObjectReader.GetDouble(int ordinal) -> double
+override FastReflection.ObjectReader.ObjectReader.GetEnumerator() -> System.Collections.IEnumerator!
+override FastReflection.ObjectReader.ObjectReader.GetFieldType(int ordinal) -> System.Type!
+override FastReflection.ObjectReader.ObjectReader.GetFloat(int ordinal) -> float
+override FastReflection.ObjectReader.ObjectReader.GetGuid(int ordinal) -> System.Guid
+override FastReflection.ObjectReader.ObjectReader.GetInt16(int ordinal) -> short
+override FastReflection.ObjectReader.ObjectReader.GetInt32(int ordinal) -> int
+override FastReflection.ObjectReader.ObjectReader.GetInt64(int ordinal) -> long
+override FastReflection.ObjectReader.ObjectReader.GetName(int ordinal) -> string!
+override FastReflection.ObjectReader.ObjectReader.GetOrdinal(string! name) -> int
+override FastReflection.ObjectReader.ObjectReader.GetSchemaTable() -> System.Data.DataTable?
+override FastReflection.ObjectReader.ObjectReader.GetString(int ordinal) -> string!
+override FastReflection.ObjectReader.ObjectReader.GetValue(int ordinal) -> object!
+override FastReflection.ObjectReader.ObjectReader.GetValues(object![]! values) -> int
+override FastReflection.ObjectReader.ObjectReader.HasRows.get -> bool
+override FastReflection.ObjectReader.ObjectReader.IsClosed.get -> bool
+override FastReflection.ObjectReader.ObjectReader.IsDBNull(int ordinal) -> bool
+override FastReflection.ObjectReader.ObjectReader.NextResult() -> bool
+override FastReflection.ObjectReader.ObjectReader.Read() -> bool
+override FastReflection.ObjectReader.ObjectReader.RecordsAffected.get -> int
+override FastReflection.ObjectReader.ObjectReader.this[int ordinal].get -> object!
+override FastReflection.ObjectReader.ObjectReader.this[string! name].get -> object!
+static FastReflection.ObjectReader.ObjectReader.Create(System.Type! elementType, System.Collections.IEnumerable! source, params string![]! members) -> FastReflection.ObjectReader.ObjectReader!
+static FastReflection.ObjectReader.ObjectReader.Create<T>(System.Collections.Generic.IEnumerable<T>! source, params string![]! members) -> FastReflection.ObjectReader.ObjectReader!

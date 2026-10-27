@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
+using FrObjectReader = FastReflection.ObjectReader.ObjectReader;
 
 namespace FastReflection.AotSmoke
 {
@@ -27,6 +28,7 @@ namespace FastReflection.AotSmoke
                 ("bound-call-fallback", BoundCallFallback),
                 ("factory-fallback", FactoryFallback),
                 ("ref-typed-invoker-not-supported", RefTypedInvokerNotSupported),
+                ("object-reader-fallback", ObjectReaderFallback),
             };
 
             for (var i = 0; i < scenarios.Length; i++)
@@ -145,6 +147,24 @@ namespace FastReflection.AotSmoke
             {
                 Check(e.Message.Contains("dynamic code"), $"unexpected message: {e.Message}");
             }
+        }
+
+        // The ObjectReader satellite under no dynamic code (#36): column binding and reads
+        // complete through the same reflection-completion path as the core accessor.
+        private static void ObjectReaderFallback()
+        {
+            var rows = new List<SmokePoco>
+            {
+                new() { Name = "a", Count = 1 },
+                new() { Name = "b", Count = 2 },
+            };
+            using var reader = FrObjectReader.Create(rows, nameof(SmokePoco.Name), nameof(SmokePoco.Count));
+            Equal(2, reader.FieldCount, "reader field count");
+            Check(reader.Read(), "reader first row");
+            Equal("a", reader.GetString(0), "reader Name");
+            Equal(1, reader.GetInt32(1), "reader Count");
+            Check(reader.Read(), "reader second row");
+            Check(!reader.Read(), "reader exhausted");
         }
 
         private delegate void IncrementRef(SmokePoco target, ref Ref<int> value);
