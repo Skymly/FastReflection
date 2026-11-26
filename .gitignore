@@ -484,3 +484,8 @@ $RECYCLE.BIN/
 # Nuke
 .nuke/temp/
 artifacts/
+
+# Local scratch directories
+.scratch/
+.Local/
+.Temp/
