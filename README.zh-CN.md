@@ -2,11 +2,19 @@
 
 [English](README.md) | **简体中文** | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-将运行时已知的属性、字段、方法或构造函数转换为可复用的访问（access）。当动态代码生成可用时，热路径为编译后的委托；不可用时，普通反射能完成的访问依然可以完成，无法完成的则会失败。不含适配的绑定不属于 access。
+[![CI](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml/badge.svg)](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-类型访问器（type accessor）列出封闭类型在单一可见性下的实例属性和字段。本库不包含动态对象或 DLR 分派、用户自定义或推断类型转换、成员路径语法或按名称查找事件、上下文元数据或可空性语义（XML 文档读取由 `Skymly.FastReflection.XmlDocs` 提供），也不包含编译期生成的访问代码。术语定义见 [CONTEXT.md](CONTEXT.md)。
+高性能 .NET 运行时反射库。在支持动态代码生成的环境中使用编译委托跑在热路径上，在不支持的环境中自动回退到标准反射（兼容 NativeAOT 与裁剪）。
 
-**目标框架**：`net462`、`netstandard2.0`、`net8.0`、`net10.0`
+- **成员访问器（Access）**：提供 `CreateInvoker`、`CreateSpanInvoker`、`CreateGetter`、`CreateSetter` 及 `Ref<T>` 按引用参数支持，另提供无适配精确绑定的 `Unreflect<TDelegate>()`。
+- **类型与对象访问器**：`TypeAccessor` 与 `ObjectAccessor` 支持按名称或序号快速读写属性/字段、`CreateNew` 以及带重载解析的绑定调用（`Invoke`、`GetValue`、`SetValue`）。
+- **NativeAOT 与裁剪就绪**：标注 `IsAotCompatible` 与 `DynamicallyAccessedMembers`，并通过 `net8.0` / `net10.0` 的 `PublishAot` 冒烟应用验证。
+- **配套包**：`Skymly.FastReflection.ObjectReader`（`DbDataReader` 适配）与 `Skymly.FastReflection.XmlDocs`（XML 文档读取）。
+
+**目标框架**：`net462`、`netstandard2.0`、`net8.0`、`net10.0` · 领域词汇表：[CONTEXT.md](CONTEXT.md)
+
+> **边界说明**：聚焦运行时已知成员与封闭类型访问器（`TypeAccessor` 仅列出实例属性与字段）；不包含 DLR / `dynamic` 分派、用户自定义转换、成员路径语法/按名称事件，以及编译期源码生成。
 
 ## 快速开始
 
