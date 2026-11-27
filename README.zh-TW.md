@@ -2,11 +2,19 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | **繁體中文** | [日本語](README.ja.md)
 
-將執行階段已知的屬性、欄位、方法或建構函式轉換為可重複使用的存取（access）。當動態程式碼可用時，熱路徑為編譯後的委派；當不可用時，一般反射能完成的存取依然可以完成，無法完成的則會失敗。不含調適的繫結不屬於 access。
+[![CI](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml/badge.svg)](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-型別存取器（type accessor）會列出封閉型別在單一可見性下的執行個體屬性與欄位。本程式庫不包含動態物件或 DLR 分派、使用者自訂或推斷型別轉換、成員路徑語法或依名稱查詢事件、內容中繼資料或可為 Null 性語意（XML 文件讀取提供於 `Skymly.FastReflection.XmlDocs`），亦不包含編譯時期產生的存取程式碼。術語定義請參閱 [CONTEXT.md](CONTEXT.md)。
+高效能 .NET 執行階段反射程式庫。在支援動態程式碼產生的環境中使用編譯委派走熱路徑，在受限環境中自動備援至一般反射（相容 NativeAOT 與裁剪）。
 
-**目標架構**：`net462`、`netstandard2.0`、`net8.0`、`net10.0`
+- **成員存取器（Access）**：提供 `CreateInvoker`、`CreateSpanInvoker`、`CreateGetter`、`CreateSetter` 與 `Ref<T>` 傳址參數支援，另提供無調適精確繫結的 `Unreflect<TDelegate>()`。
+- **型別與物件存取器**：`TypeAccessor` 與 `ObjectAccessor` 支援依名稱或序號快速讀寫屬性/欄位、`CreateNew`，以及含多載解析的繫結呼叫（`Invoke`、`GetValue`、`SetValue`）。
+- **NativeAOT 與裁剪就緒**：標註 `IsAotCompatible` 與 `DynamicallyAccessedMembers`，並透過 `net8.0` / `net10.0` 的 `PublishAot` 冒煙應用程式驗證。
+- **配套套件**：`Skymly.FastReflection.ObjectReader`（`DbDataReader` 轉接）與 `Skymly.FastReflection.XmlDocs`（XML 文件讀取）。
+
+**目標架構**：`net462`、`netstandard2.0`、`net8.0`、`net10.0` · 領域詞彙表：[CONTEXT.md](CONTEXT.md)
+
+> **範圍說明**：聚焦執行階段已知成員與封閉型別存取器（`TypeAccessor` 僅列出執行個體屬性與欄位）；不包含 DLR / `dynamic` 分派、使用者自訂轉換、成員路徑語法/依名稱查詢事件，以及編譯時期原始碼產生。
 
 ## 快速開始
 

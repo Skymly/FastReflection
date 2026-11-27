@@ -2,11 +2,19 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | **日本語**
 
-実行時にすでに判明しているプロパティ、フィールド、メソッド、またはコンストラクターを、再利用可能なアクセス（access）へ変換します。動的コード生成が利用可能な場合はコンパイル済みデリゲートがホットパスとなり、利用できない場合でも通常のリフレクションで完了できるアクセスは完了し、完了できないものは失敗します。適合（adaptation）を伴わないバインドは access ではありません。
+[![CI](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml/badge.svg)](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-型アクセサー（type accessor）は、クローズド型における単一可視性のインスタンスプロパティおよびフィールドを列挙します。このライブラリには、動的オブジェクトや DLR ディスパッチ、ユーザー定義変換または暗黙推論変換、メンバーパス構文や名前によるイベント参照、コンテキストメタデータや null 許容性セマンティクス（XML ドキュメントの読み取りは `Skymly.FastReflection.XmlDocs` で提供）、およびコンパイル時生成アクセスは含まれません。用語は [CONTEXT.md](CONTEXT.md) に定義されています。
+高性能な .NET ランタイムリフレクションライブラリです。動的コード生成が利用可能な環境ではコンパイル済みデリゲートをホットパスとして使用し、利用できない環境では標準リフレクションへ自動フォールバックします（NativeAOT / トリミング対応）。
 
-**ターゲットフレームワーク**: `net462`, `netstandard2.0`, `net8.0`, `net10.0`
+- **メンバーアクセサー（Access）**: `CreateInvoker`、`CreateSpanInvoker`、`CreateGetter`、`CreateSetter`、`Ref<T>` 参照渡し引数サポート、および適合なしの厳密バインド `Unreflect<TDelegate>()`。
+- **型・オブジェクトアクセサー**: `TypeAccessor` / `ObjectAccessor` による名前・序数ベースの高速プロパティ／フィールドアクセス、`CreateNew`、オーバーロード解決付きバインド呼び出し（`Invoke`、`GetValue`、`SetValue`）。
+- **NativeAOT / トリミング対応**: `IsAotCompatible` と `DynamicallyAccessedMembers` を付与し、`net8.0` / `net10.0` の `PublishAot` スモークアプリで検証済み。
+- **サテライトパッケージ**: `Skymly.FastReflection.ObjectReader`（`DbDataReader` アダプター）および `Skymly.FastReflection.XmlDocs`（XML ドキュメント読み取り）。
+
+**ターゲットフレームワーク**: `net462`, `netstandard2.0`, `net8.0`, `net10.0` · ドメイン用語集: [CONTEXT.md](CONTEXT.md)
+
+> **設計範囲**: 実行時に既知のメンバーおよびクローズド型のアクセサー（`TypeAccessor` はインスタンスプロパティとフィールドのみ列挙）を対象とします。DLR / `dynamic` ディスパッチ、ユーザー定義変換、メンバーパス構文／名前によるイベント参照、コンパイル時ソース生成は含みません。
 
 ## クイックスタート
 

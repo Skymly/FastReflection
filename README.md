@@ -2,11 +2,19 @@
 
 **English** | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md)
 
-Turns a property, field, method, or constructor already known at runtime into a reusable access. When dynamic code is available the hot path is a compiled delegate; when it is not, an access that ordinary reflection can complete still completes, and one it cannot complete fails. A bind with no adaptation is not an access.
+[![CI](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml/badge.svg)](https://github.com/Skymly/FastReflection/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A type accessor names the instance properties and fields of a closed type. This library does not include dynamic-object or DLR dispatch, user-defined or inferred conversions, member-path grammars or events by name, contextual metadata or nullability meaning (XML-doc reading ships in `Skymly.FastReflection.XmlDocs`), or compile-time generated access. Terms live in [CONTEXT.md](CONTEXT.md).
+High-performance .NET runtime reflection library. It compiles reusable delegates on hot paths when dynamic code is available and automatically falls back to safe reflection when it is not (NativeAOT / trimming compatible).
 
-**Target frameworks**: `net462`, `netstandard2.0`, `net8.0`, `net10.0`
+- **Member accessors**: `CreateInvoker`, `CreateSpanInvoker`, `CreateGetter`, `CreateSetter`, and `Ref<T>` by-ref parameter support, plus `Unreflect<TDelegate>()` for zero-adaptation exact binds.
+- **Type & object accessors**: `TypeAccessor` and `ObjectAccessor` for fast property/field access by name or ordinal, `CreateNew`, and overload-resolved bound calls (`Invoke`, `GetValue`, `SetValue`).
+- **AOT & trimming ready**: annotated with `IsAotCompatible` and `DynamicallyAccessedMembers`, verified by a `PublishAot` smoke app on `net8.0` / `net10.0`.
+- **Companion packages**: `Skymly.FastReflection.ObjectReader` (`DbDataReader` adapter) and `Skymly.FastReflection.XmlDocs` (XML documentation lookup).
+
+**Target frameworks**: `net462`, `netstandard2.0`, `net8.0`, `net10.0` · Domain vocabulary: [CONTEXT.md](CONTEXT.md)
+
+> **Design scope**: Covers runtime-known members and closed-type accessors (`TypeAccessor` lists instance properties and fields). Excludes DLR/`dynamic` dispatch, user-defined conversions, member-path grammars/events by name, and compile-time source generation.
 
 ## Quick start
 
